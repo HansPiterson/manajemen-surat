@@ -1,0 +1,65 @@
+import React, { useState, useEffect } from 'react';
+import { Outlet, useNavigate } from '@tanstack/react-router';
+import Navbar from '../components/Navbar';
+import Sidebar from '../components/Sidebar';
+import { DashboardSquare01Icon, Mail01Icon } from 'hugeicons-react';
+
+const divisiNavigation = [
+  { name: 'Dashboard', href: '/divisi/dashboard', icon: DashboardSquare01Icon },
+  { name: 'Surat Masuk / Keluar', href: '/divisi/surat', icon: Mail01Icon },
+];
+
+export default function DivisiLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+      setIsFullscreen(false);
+    }
+  };
+
+  // Listen to escape key or browser exit fullscreen
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+  
+  return (
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900">
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+        items={divisiNavigation}
+        title="Menu Divisi"
+        isHidden={isFullscreen}
+      />
+      
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Navbar 
+          onMenuClick={() => setSidebarOpen(true)} 
+          hideProfile={true}
+          onToggleFullscreen={toggleFullscreen}
+          isFullscreen={isFullscreen}
+        />
+        
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-7xl">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

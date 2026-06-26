@@ -1,0 +1,128 @@
+import React from 'react';
+import {
+  Outlet,
+  RouterProvider,
+  createRouter,
+  createRoute,
+  createRootRoute,
+} from '@tanstack/react-router';
+import { ThemeProvider } from './contexts/ThemeContext';
+import AuthWrapper from './components/AuthWrapper';
+
+import Login from './pages/Login';
+
+// Admin Imports
+import AdminLayout from './layouts/AdminLayout';
+import AdminDashboard from './pages/admin/Dashboard';
+import DivisiManagement from './pages/admin/DivisiManagement';
+import AdminSuratViewer from './pages/admin/SuratViewer';
+import Settings from './pages/admin/Settings';
+
+// Divisi Imports
+import DivisiLayout from './layouts/DivisiLayout';
+import DivisiDashboard from './pages/divisi/Dashboard';
+import DivisiSuratViewer from './pages/divisi/SuratViewer';
+
+// Create a root route
+const rootRoute = createRootRoute({
+  component: () => <Outlet />,
+});
+
+// Create an index route mapping to the Login page
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: Login,
+});
+
+// --- ADMIN ROUTES ---
+const adminAuthRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'adminAuth',
+  component: () => <AuthWrapper allowedRole="admin" />
+});
+
+const adminRoute = createRoute({
+  getParentRoute: () => adminAuthRoute,
+  path: '/admin',
+  component: AdminLayout,
+});
+
+const adminDashboardRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/dashboard',
+  component: AdminDashboard,
+});
+
+const divisiManagementRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/divisi',
+  component: DivisiManagement,
+});
+
+const adminSuratRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/surat',
+  component: AdminSuratViewer,
+});
+
+const settingsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/settings',
+  component: Settings,
+});
+
+// --- DIVISI ROUTES ---
+const divisiAuthRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'divisiAuth',
+  component: () => <AuthWrapper allowedRole="divisi" />
+});
+
+const divisiRoute = createRoute({
+  getParentRoute: () => divisiAuthRoute,
+  path: '/divisi',
+  component: DivisiLayout,
+});
+
+const divisiDashboardRoute = createRoute({
+  getParentRoute: () => divisiRoute,
+  path: '/dashboard',
+  component: DivisiDashboard,
+});
+
+const divisiSuratRoute = createRoute({
+  getParentRoute: () => divisiRoute,
+  path: '/surat',
+  component: DivisiSuratViewer,
+});
+
+// Create the route tree
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  adminAuthRoute.addChildren([
+    adminRoute.addChildren([
+      adminDashboardRoute, 
+      divisiManagementRoute, 
+      adminSuratRoute, 
+      settingsRoute
+    ])
+  ]),
+  divisiAuthRoute.addChildren([
+    divisiRoute.addChildren([
+      divisiDashboardRoute,
+      divisiSuratRoute
+    ])
+  ])
+]);
+
+// Create the router
+const router = createRouter({ routeTree });
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>
+  );
+}
