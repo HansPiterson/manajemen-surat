@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Menu01Icon, ArrowExpandIcon, ArrowShrinkIcon } from 'hugeicons-react';
 
-export default function Navbar({ onMenuClick, hideProfile, onToggleFullscreen, isFullscreen }) {
+export default function Navbar({ onMenuClick, hideProfile, onToggleFullscreen, isFullscreen, className = '' }) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80 transition-all">
+    <header className={`sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80 transition-all ${className}`}>
       <div className="flex items-center gap-4">
         <button 
           onClick={onMenuClick}
@@ -16,18 +16,18 @@ export default function Navbar({ onMenuClick, hideProfile, onToggleFullscreen, i
           <img 
             src="https://upload.wikimedia.org/wikipedia/id/thumb/4/40/Timah_Logo1.png/1280px-Timah_Logo1.png" 
             alt="Logo PT Timah" 
-            className="h-8 w-auto object-contain"
+            className="h-6 sm:h-8 w-auto object-contain shrink-0"
           />
-          <div className="flex flex-col">
-            <h1 className="text-lg font-bold leading-tight text-slate-900 dark:text-slate-50">
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-sm md:text-lg font-bold leading-tight text-slate-900 dark:text-slate-50 truncate">
               Surat Ekspedisi Digital
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="relative flex h-2 w-2">
+              <span className="relative flex h-2 w-2 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="text-[10px] sm:text-xs font-medium text-emerald-600 dark:text-emerald-400 truncate">
                 Server: Online
               </span>
             </div>
@@ -47,7 +47,7 @@ export default function Navbar({ onMenuClick, hideProfile, onToggleFullscreen, i
         )}
 
         {!hideProfile && (
-          <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-300">
+          <div className="hidden sm:flex h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-300">
             U
           </div>
         )}

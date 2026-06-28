@@ -44,6 +44,7 @@ export default function DivisiLayout() {
         items={divisiNavigation}
         title="Menu Divisi"
         isHidden={isFullscreen}
+        className="hide-on-print"
       />
       
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -52,6 +53,7 @@ export default function DivisiLayout() {
           hideProfile={true}
           onToggleFullscreen={toggleFullscreen}
           isFullscreen={isFullscreen}
+          className="hide-on-print"
         />
         
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">

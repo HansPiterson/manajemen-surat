@@ -5,7 +5,7 @@ import { InformationCircleIcon } from 'hugeicons-react';
 
 export default function DivisiDashboard() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ masuk: 0, keluar: 0 });
+  const [stats, setStats] = useState({ today: 0, week: 0, month: 0, total: 0 });
   const [namaDivisi, setNamaDivisi] = useState('');
   const [error, setError] = useState(null);
 
@@ -39,13 +39,32 @@ export default function DivisiDashboard() {
       // Fetch stats
       const { data: allSurat, error: statsError } = await supabase
         .from('surat_ekspedisi')
-        .select('divisi_tujuan_id, divisi_pengirim_id');
+        .select('tanggal_surat, status');
       
       if (statsError) throw statsError;
       
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const firstDayOfWeek = new Date(today);
+      firstDayOfWeek.setDate(today.getDate() - today.getDay());
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      let todayCount = 0;
+      let weekCount = 0;
+      let monthCount = 0;
+
+      (allSurat || []).forEach(surat => {
+        const d = new Date(surat.tanggal_surat);
+        if (d >= today) todayCount++;
+        if (d >= firstDayOfWeek) weekCount++;
+        if (d >= firstDayOfMonth) monthCount++;
+      });
+      
       setStats({ 
-        masuk: allSurat?.length || 0, // Placeholder
-        keluar: Math.floor((allSurat?.length || 0) / 2) // Placeholder
+        today: todayCount,
+        week: weekCount,
+        month: monthCount,
+        total: allSurat?.length || 0
       });
 
     } catch (err) {
@@ -58,16 +77,6 @@ export default function DivisiDashboard() {
   return (
     <div className="space-y-6">
       
-      {/* Running Text Navbar (Marquee) */}
-      <div className="bg-blue-600 dark:bg-blue-800 text-white flex items-center px-4 py-2.5 rounded-xl shadow-sm overflow-hidden relative -mt-2 mb-6">
-        <InformationCircleIcon size={20} className="shrink-0 mr-3 text-blue-200" />
-        <div className="flex-1 overflow-hidden relative" style={{ height: '24px' }}>
-          <div className="animate-marquee absolute whitespace-nowrap text-sm font-medium">
-            Informasi: Sebagai divisi, Anda hanya memiliki akses <strong>BACA (Read-Only)</strong> terhadap surat-surat yang dikirim ke divisi Anda atau dari divisi Anda. Pengunggahan foto bukti pengiriman dilakukan secara otomatis oleh kurir di lapangan melalui aplikasi mobile.
-          </div>
-        </div>
-      </div>
-
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
           Dashboard Divisi {namaDivisi ? `(${namaDivisi})` : ''}
@@ -82,19 +91,24 @@ export default function DivisiDashboard() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Surat Masuk (Diterima)</h3>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.masuk}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-center">
+            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Hari Ini</h3>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.today}</p>
           </div>
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Surat Keluar (Dikirim)</h3>
-            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{stats.keluar}</p>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-center">
+            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Minggu Ini</h3>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.week}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-center">
+            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Bulan Ini</h3>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.month}</p>
           </div>
         </div>
       )}

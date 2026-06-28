@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import Skeleton from '../../components/ui/Skeleton';
+import { Download01Icon, PrinterIcon } from 'hugeicons-react';
 
 export default function DivisiSuratViewer() {
   const [suratList, setSuratList] = useState([]);
@@ -44,22 +45,73 @@ export default function DivisiSuratViewer() {
     }
   };
 
+  const handleExportCSV = () => {
+    if (suratList.length === 0) return;
+    
+    // Create CSV header
+    const headers = ['Nomor Surat', 'Pengirim', 'Tujuan', 'Perihal', 'Tanggal', 'Status'];
+    
+    // Create CSV rows
+    const rows = suratList.map(surat => [
+      `"${surat.nomor_surat}"`,
+      `"${surat.divisi_pengirim?.nama_divisi || ''}"`,
+      `"${surat.divisi_tujuan?.nama_divisi || ''}"`,
+      `"${surat.perihal}"`,
+      `"${surat.tanggal_surat}"`,
+      `"${surat.status}"`
+    ]);
+    
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    
+    // Download Blob
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `laporan_surat_divisi_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintPDF = () => {
+    window.print();
+  };
+
   const getStatusBadge = (status) => {
     switch(status) {
       case 'diterima':
-        return <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-500/20">Diterima</span>;
+        return <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-800 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Diterima</span>;
       case 'dikirim':
-        return <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-500/20">Dikirim</span>;
+        return <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-900/50 dark:text-slate-400 dark:ring-slate-800">Dikirim</span>;
       default:
-        return <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">{status}</span>;
+        return <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">{status}</span>;
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Surat Masuk & Keluar</h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-1">Daftar surat ekspedisi yang berkaitan dengan divisi Anda.</p>
+    <div className="space-y-6 print-container">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Surat Masuk & Keluar</h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1 hide-on-print">Daftar surat ekspedisi yang berkaitan dengan divisi Anda.</p>
+        </div>
+        <div className="flex gap-2 hide-on-print">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <Download01Icon size={18} />
+            <span>CSV</span>
+          </button>
+          <button 
+            onClick={handlePrintPDF}
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <PrinterIcon size={18} />
+            <span>PDF</span>
+          </button>
+        </div>
       </div>
 
       {error && <div className="mb-4 text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">{error}</div>}
