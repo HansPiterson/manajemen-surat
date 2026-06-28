@@ -18,11 +18,26 @@ export default function AuthWrapper({ allowedRole }) {
           return;
         }
 
-        // For now, if we are just checking for any valid session, we allow it.
-        // In a real app, we would fetch the user's role from public.users to enforce `allowedRole`.
-        // Example logic:
-        // const { data } = await supabase.from('users').select('role').eq('id', session.user.id).single();
-        // if (data.role !== allowedRole) throw new Error('Unauthorized');
+        // Fetch user role from database and enforce allowedRole
+        const { data: userData, error: roleError } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (roleError || !userData) {
+          throw new Error('User not found');
+        }
+
+        if (userData.role !== allowedRole) {
+          // Redirect to correct dashboard based on actual role
+          if (userData.role === 'admin') {
+            navigate({ to: '/admin/dashboard' });
+          } else {
+            navigate({ to: '/divisi/dashboard' });
+          }
+          return;
+        }
 
         setAuthorized(true);
       } catch (error) {

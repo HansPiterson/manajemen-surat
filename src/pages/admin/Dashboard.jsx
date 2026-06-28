@@ -4,7 +4,7 @@ import Skeleton from '../../components/ui/Skeleton';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, diterima: 0, pending: 0 });
+  const [stats, setStats] = useState({ total: 0, draft: 0, dikirim: 0, diterima: 0 });
   const [recentActivity, setRecentActivity] = useState([]);
   const [error, setError] = useState(null);
 
@@ -26,16 +26,17 @@ export default function Dashboard() {
       if (statsError) throw statsError;
 
       const total = allSurat?.length || 0;
+      const draft = allSurat?.filter(s => s.status === 'draft').length || 0;
+      const dikirim = allSurat?.filter(s => s.status === 'dikirim').length || 0;
       const diterima = allSurat?.filter(s => s.status === 'diterima').length || 0;
-      const pending = allSurat?.filter(s => s.status === 'dikirim').length || 0;
 
-      setStats({ total, diterima, pending });
+      setStats({ total, draft, dikirim, diterima });
 
       // 2. Fetch Recent Activity (Limit 5)
       const { data: recent, error: recentError } = await supabase
         .from('surat_ekspedisi')
         .select(`
-          id, 
+          uuid, 
           nomor_surat, 
           perihal, 
           tanggal_surat, 
@@ -58,10 +59,12 @@ export default function Dashboard() {
 
   const getStatusBadge = (status) => {
     switch(status) {
-      case 'diterima':
-        return <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-500/20">Diterima</span>;
+      case 'draft':
+        return <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">Draft</span>;
       case 'dikirim':
         return <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-500/20">Dikirim</span>;
+      case 'diterima':
+        return <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/30 dark:text-blue-400 dark:ring-blue-500/20">Sync</span>;
       default:
         return <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">{status}</span>;
     }
@@ -82,24 +85,29 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+          <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Surat Tercatat</h3>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.total}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Diterima</h3>
-            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{stats.diterima}</p>
+            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Draft</h3>
+            <p className="text-3xl font-bold text-gray-500 dark:text-gray-400 mt-2">{stats.draft}</p>
           </div>
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Pending/Dikirim</h3>
-            <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-2">{stats.pending}</p>
+            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Sedang Dikirim</h3>
+            <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-2">{stats.dikirim}</p>
+          </div>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Sync</h3>
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{stats.diterima}</p>
           </div>
         </div>
       )}
@@ -136,7 +144,7 @@ export default function Dashboard() {
                     </tr>
                   ) : (
                     recentActivity.map((surat) => (
-                      <tr key={surat.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                         <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{surat.nomor_surat}</td>
                         <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_pengirim?.nama_divisi || '-'}</td>
                         <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_tujuan?.nama_divisi || '-'}</td>

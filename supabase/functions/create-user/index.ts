@@ -14,8 +14,8 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseClient = createClient(
-      Deno.env.get("VITE_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("VITE_SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
           headers: { Authorization: req.headers.get("Authorization")! },
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse request body
-    const { email, password, divisi_id, role } = await req.json();
+    const { email, password, divisi_id, role, nama_lengkap } = await req.json();
 
     if (!email || !password || !divisi_id || !role) {
       throw new Error("Missing required fields");
@@ -50,8 +50,8 @@ Deno.serve(async (req) => {
     // Create a Supabase admin client to bypass RLS and create auth user
     // This requires the SERVICE_ROLE_KEY to be set in the environment
     const supabaseAdmin = createClient(
-      Deno.env.get("VITE_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("VITE_SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     // Create user in auth.users
@@ -71,9 +71,9 @@ Deno.serve(async (req) => {
       .insert([
         {
           id: newUserId,
-          email: email,
           role: role,
           divisi_id: divisi_id,
+          nama_lengkap: nama_lengkap || email,
         },
       ]);
 

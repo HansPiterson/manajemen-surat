@@ -1,36 +1,67 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import Skeleton from '../../components/ui/Skeleton';
-import { Download01Icon, PrinterIcon } from 'hugeicons-react';
+import { Download01Icon, PrinterIcon, Cancel01Icon } from 'hugeicons-react';
 
 export default function DivisiSuratViewer() {
   const [suratList, setSuratList] = useState([]);
+  const [divisiList, setDivisiList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // Create Form State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [currentDivisiId, setCurrentDivisiId] = useState(null);
+  const [formData, setFormData] = useState({
+    perihal: '',
+    divisi_tujuan_id: '',
+    nama_penerima: ''
+  });
 
   useEffect(() => {
+    fetchUserData();
+    fetchDivisi();
     fetchSurat();
   }, []);
+
+  const fetchUserData = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data } = await supabase
+          .from('users')
+          .select('divisi_id')
+          .eq('id', session.user.id)
+          .single();
+        if (data) setCurrentDivisiId(data.divisi_id);
+      }
+    } catch (err) {
+      console.error('Error fetching user data:', err);
+    }
+  };
+
+  const fetchDivisi = async () => {
+    try {
+      const { data, error } = await supabase.from('divisi').select('id, nama_divisi').eq('is_active', true);
+      if (error) throw error;
+      setDivisiList(data || []);
+    } catch (err) {
+      console.error('Error fetching divisi:', err);
+    }
+  };
 
   const fetchSurat = async () => {
     setLoading(true);
     try {
-      // Fetching surat data. RLS on Supabase will automatically filter this
-      // so the division only sees their own letters (sent or received).
       const { data, error } = await supabase
         .from('surat_ekspedisi')
         .select(`
-          id, 
+          uuid, 
           nomor_surat, 
           perihal, 
           tanggal_surat, 
           status,
-          foto_bukti,
-          foto_latitude,
-          foto_longitude,
-          foto_hash,
-          needs_upload,
           divisi_pengirim:divisi_pengirim_id (nama_divisi),
           divisi_tujuan:divisi_tujuan_id (nama_divisi)
         `)
@@ -45,13 +76,52 @@ export default function DivisiSuratViewer() {
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    if (!currentDivisiId) {
+      setError("Data divisi pengirim tidak ditemukan.");
+      return;
+    }
+
+    setFormLoading(true);
+    setError(null);
+    try {
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const randomId = Math.floor(1000 + Math.random() * 9000);
+      const nomor_surat = `EKS-${dateStr}-${randomId}`;
+
+      const { error } = await supabase
+        .from('surat_ekspedisi')
+        .insert([{
+          nomor_surat,
+          perihal: formData.perihal,
+          tanggal_surat: new Date(),
+          status: 'draft',
+          divisi_pengirim_id: currentDivisiId,
+          divisi_tujuan_id: formData.divisi_tujuan_id,
+          nama_penerima: formData.nama_penerima || null
+        }]);
+      
+      if (error) throw error;
+      
+      setShowCreateModal(false);
+      setFormData({ perihal: '', divisi_tujuan_id: '', nama_penerima: '' });
+      fetchSurat();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   const handleExportCSV = () => {
     if (suratList.length === 0) return;
-    
-    // Create CSV header
     const headers = ['Nomor Surat', 'Pengirim', 'Tujuan', 'Perihal', 'Tanggal', 'Status'];
-    
-    // Create CSV rows
     const rows = suratList.map(surat => [
       `"${surat.nomor_surat}"`,
       `"${surat.divisi_pengirim?.nama_divisi || ''}"`,
@@ -60,10 +130,7 @@ export default function DivisiSuratViewer() {
       `"${surat.tanggal_surat}"`,
       `"${surat.status}"`
     ]);
-    
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    
-    // Download Blob
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -80,12 +147,14 @@ export default function DivisiSuratViewer() {
 
   const getStatusBadge = (status) => {
     switch(status) {
-      case 'diterima':
-        return <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-800 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Diterima</span>;
+      case 'draft':
+        return <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">Draft</span>;
       case 'dikirim':
-        return <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-900/50 dark:text-slate-400 dark:ring-slate-800">Dikirim</span>;
+        return <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-500/20">Dikirim</span>;
+      case 'diterima':
+        return <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/30 dark:text-blue-400 dark:ring-blue-500/20">Sync</span>;
       default:
-        return <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">{status}</span>;
+        return <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">{status}</span>;
     }
   };
 
@@ -96,7 +165,13 @@ export default function DivisiSuratViewer() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Surat Masuk & Keluar</h1>
           <p className="text-slate-600 dark:text-slate-400 mt-1 hide-on-print">Daftar surat ekspedisi yang berkaitan dengan divisi Anda.</p>
         </div>
-        <div className="flex gap-2 hide-on-print">
+        <div className="flex flex-wrap gap-2 hide-on-print">
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <span>Buat Surat Baru</span>
+          </button>
           <button 
             onClick={handleExportCSV}
             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 px-4 py-2 rounded-md font-medium transition-colors"
@@ -131,7 +206,6 @@ export default function DivisiSuratViewer() {
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {loading ? (
-                // Skeleton loading rows
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
                     <td className="px-6 py-4"><Skeleton className="h-5 w-24" /></td>
@@ -139,7 +213,6 @@ export default function DivisiSuratViewer() {
                     <td className="px-6 py-4"><Skeleton className="h-5 w-32" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-5 w-48" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-5 w-24" /></td>
-                    <td className="px-6 py-4"><Skeleton className="h-6 w-16 rounded-md" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-6 w-16 rounded-md" /></td>
                   </tr>
                 ))
@@ -151,7 +224,7 @@ export default function DivisiSuratViewer() {
                 </tr>
               ) : (
                 suratList.map((surat) => (
-                  <tr key={surat.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{surat.nomor_surat}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_pengirim?.nama_divisi || '-'}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_tujuan?.nama_divisi || '-'}</td>
@@ -168,6 +241,81 @@ export default function DivisiSuratViewer() {
         </div>
       </div>
 
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hide-on-print">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Buat Surat Baru (Draft)</h3>
+              <button 
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Cancel01Icon size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="p-6 overflow-y-auto space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Perihal Surat *</label>
+                <input
+                  type="text"
+                  name="perihal"
+                  value={formData.perihal}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  placeholder="Misal: Dokumen Penawaran"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Tujuan *</label>
+                <select
+                  name="divisi_tujuan_id"
+                  value={formData.divisi_tujuan_id}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                >
+                  <option value="">-- Pilih Divisi --</option>
+                  {divisiList.map(div => (
+                    <option key={div.id} value={div.id}>{div.nama_divisi}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Penerima</label>
+                <input
+                  type="text"
+                  name="nama_penerima"
+                  value={formData.nama_penerima}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  placeholder="Opsional"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 rounded-md font-medium transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 rounded-md font-medium transition-colors disabled:opacity-50"
+                >
+                  {formLoading ? 'Menyimpan...' : 'Simpan Draft'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

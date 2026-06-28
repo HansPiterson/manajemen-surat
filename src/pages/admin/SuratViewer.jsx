@@ -19,8 +19,7 @@ export default function SuratViewer() {
     perihal: '',
     divisi_pengirim_id: '',
     divisi_tujuan_id: '',
-    nama_penerima: '',
-    tujuan_perorangan: ''
+    nama_penerima: ''
   });
 
   useEffect(() => {
@@ -45,16 +44,15 @@ export default function SuratViewer() {
       const { data, error } = await supabase
         .from('surat_ekspedisi')
         .select(`
-          id, 
+          uuid, 
           nomor_surat, 
           perihal, 
           tanggal_surat, 
           status,
-          foto_bukti,
+          foto_bukti_url,
           foto_latitude,
           foto_longitude,
           foto_hash,
-          needs_upload,
           divisi_pengirim:divisi_pengirim_id (nama_divisi),
           divisi_tujuan:divisi_tujuan_id (nama_divisi)
         `)
@@ -90,18 +88,16 @@ export default function SuratViewer() {
           nomor_surat,
           perihal: formData.perihal,
           tanggal_surat: new Date(),
-          status: 'dikirim',
+          status: 'draft',
           divisi_pengirim_id: formData.divisi_pengirim_id,
           divisi_tujuan_id: formData.divisi_tujuan_id,
-          nama_penerima: formData.nama_penerima || null,
-          tujuan_perorangan: formData.tujuan_perorangan || null,
-          needs_upload: true // Will be picked up by mobile app
+          nama_penerima: formData.nama_penerima || null
         }]);
       
       if (error) throw error;
       
       setShowCreateModal(false);
-      setFormData({ perihal: '', divisi_pengirim_id: '', divisi_tujuan_id: '', nama_penerima: '', tujuan_perorangan: '' });
+      setFormData({ perihal: '', divisi_pengirim_id: '', divisi_tujuan_id: '', nama_penerima: '' });
       fetchSurat();
     } catch (err) {
       setError(err.message);
@@ -112,12 +108,14 @@ export default function SuratViewer() {
 
   const getStatusBadge = (status) => {
     switch(status) {
-      case 'diterima':
-        return <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-800 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Diterima</span>;
+      case 'draft':
+        return <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">Draft</span>;
       case 'dikirim':
-        return <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-900/50 dark:text-slate-400 dark:ring-slate-800">Dikirim</span>;
+        return <span className="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20 dark:bg-yellow-900/30 dark:text-yellow-400 dark:ring-yellow-500/20">Dikirim</span>;
+      case 'diterima':
+        return <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/30 dark:text-blue-400 dark:ring-blue-500/20">Sync</span>;
       default:
-        return <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">{status}</span>;
+        return <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">{status}</span>;
     }
   };
 
@@ -174,7 +172,7 @@ export default function SuratViewer() {
                 </tr>
               ) : (
                 suratList.map((surat) => (
-                  <tr key={surat.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{surat.nomor_surat}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_pengirim?.nama_divisi || '-'}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_tujuan?.nama_divisi || '-'}</td>
@@ -184,7 +182,7 @@ export default function SuratViewer() {
                       {getStatusBadge(surat.status)}
                     </td>
                     <td className="px-6 py-4 text-sm text-center">
-                      {surat.foto_bukti ? (
+                      {surat.foto_bukti_url ? (
                         <button 
                           onClick={() => setSelectedSurat(surat)}
                           className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors inline-block"
@@ -192,9 +190,9 @@ export default function SuratViewer() {
                         >
                           <Image01Icon size={20} />
                         </button>
-                      ) : surat.needs_upload ? (
+                      ) : surat.status === 'dikirim' ? (
                         <span className="text-xs text-amber-600 dark:text-amber-400 font-medium" title="Menunggu Sync Upload dari Mobile">
-                          Syncing...
+                          Menunggu kurir...
                         </span>
                       ) : (
                         <span className="text-slate-400 dark:text-slate-600">-</span>
@@ -240,9 +238,9 @@ export default function SuratViewer() {
 
               {/* Image Preview */}
               <div className="bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden aspect-[3/4] sm:aspect-square flex items-center justify-center relative">
-                {selectedSurat.foto_bukti ? (
+                {selectedSurat.foto_bukti_url ? (
                   <img 
-                    src={selectedSurat.foto_bukti} 
+                    src={selectedSurat.foto_bukti_url} 
                     alt="Bukti Pengiriman" 
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -346,19 +344,7 @@ export default function SuratViewer() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tujuan Perorangan</label>
-                  <input
-                    type="text"
-                    name="tujuan_perorangan"
-                    value={formData.tujuan_perorangan}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500"
-                    placeholder="Misal: Bpk. Budi"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">Opsional jika ditujukan ke orang spesifik.</p>
-                </div>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Penerima</label>
                   <input
@@ -386,7 +372,7 @@ export default function SuratViewer() {
                   disabled={formLoading}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 rounded-md font-medium transition-colors disabled:opacity-50"
                 >
-                  {formLoading ? 'Menyimpan...' : 'Simpan & Terbitkan'}
+                  {formLoading ? 'Menyimpan...' : 'Simpan Draft'}
                 </button>
               </div>
             </form>

@@ -50,29 +50,22 @@ Aplikasi manajemen ekspedisi surat digital untuk PT Timah. Dibangun dengan React
 
 Bagian ini ditujukan untuk tim Developer yang akan melanjutkan pengembangan aplikasi dan integrasi ke *Mobile App* (Flutter).
 
-### Status Fitur (Selesai vs Tertunda)
+### Status Fitur (Selesai)
 
-**✅ Selesai (Frontend & Database Structure):**
-1. **Skema Database & RLS**: Tabel `divisi`, `users`, `surat_ekspedisi` telah dirancang dan dilindungi dengan *Row Level Security* (RLS).
+**✅ Frontend & Database Structure:**
+1. **Skema Database & RLS**: Tabel `divisi`, `users`, `surat_ekspedisi` dirancang dan dilindungi dengan *Row Level Security* (RLS). Termasuk dukungan kolom baru `foto_latitude`, `foto_longitude`, dan `foto_bukti_url`.
 2. **Dashboard Admin**: CRUD Divisi, Statistik Global, dan Manajemen Surat (termasuk *Pop-up Bukti Foto & Metadata*).
-3. **Portal Divisi**: Tampilan *read-only* surat terisolasi berdasarkan divisi, dengan mode *Full Screen* (Monitoring).
-4. **Sistem Autentikasi**: *Auth Wrapper* & *Route Guards* berbasis *Role*.
+3. **Portal Divisi**: Pembuatan "Surat Draft" otomatis sesuai ID Divisi pengirim, dan riwayat surat terisolasi (read-only).
+4. **Sistem Autentikasi**: *Auth Wrapper* & *Route Guards* berbasis *Role* yang tervalidasi langsung dari *database*.
 
-**⏳ Tertunda (Backend APIs - Edge Functions):**
-1. **Pembuatan Akun Divisi (Admin)**: Karena pembuatan *user* di tabel `auth.users` membutuhkan privilese Admin, kita harus membuat *Supabase Edge Function* (`create-user`) agar form di UI "Manajemen Divisi" bisa didaftarkan dengan aman.
-2. **API Endpoint untuk Mobile App (Flutter)**: Kita harus membuat *Edge Function* (`sync-proof`) yang berfungsi menerima *Multipart/Form-Data* dari kurir. API ini akan:
-   - Menerima gambar fisik.
-   - Menerima koordinat (*Latitude/Longitude*) & waktu.
-   - Menerima *Hash SHA-256* dari gambar untuk validasi anti-manipulasi.
-   - Menyimpan gambar ke *Supabase Storage* (`surat-bukti`) lalu melakukan *update* pada tabel `surat_ekspedisi`.
+**✅ Backend APIs (Edge Functions):**
+1. **Pembuatan Akun Divisi (Admin)**: Edge Function `create-user` telah dibuat dan di-deploy, mendukung integrasi penambahan nama lengkap (`nama_lengkap`).
+2. **API Endpoint untuk Mobile App (Flutter)**: Edge Function `sync-proof` telah dibuat dan dikonfigurasi untuk menerima multipart data (`hash`, `lat`, `lon`, `surat_id`), memvalidasi file, menyimpannya di bucket `bukti-surat`, serta memperbarui database.
 
-### Mengapa Supabase Edge Functions (vs Node.js)?
+---
+## 📝 Changelog (Update Terbaru)
+- **Standardisasi Skema**: Penyelarasan kolom `foto_bukti_url` dan `is_synced` agar sesuai antara Web App, Edge Functions, dan Mobile App (Flutter).
+- **Tipe Data**: `surat_status` disederhanakan menjadi `draft`, `dikirim`, dan `diterima` sesuai alur ekspedisi nyata.
+- **Divisi Akses**: Menambahkan kemampuan *insert* bagi entitas divisi untuk membuat *draft* surat awal.
 
-Untuk *backend logic* yang tersisa, sangat direkomendasikan menggunakan **Supabase Edge Functions** dibandingkan membangun server *Node.js (Express)* terpisah karena:
-1. **Jauh Lebih Murah**: *Edge Functions* sudah tergabung dalam biaya/tier gratis Supabase (hingga jutaan panggilan/bulan). Anda tidak perlu menyewa VPS (seperti DigitalOcean) atau platform hosting (Render/Heroku) terpisah.
-2. **Lebih Cepat & Praktis**: Konfigurasi keamanan (validasi token JWT pengguna) terhubung langsung dengan ekosistem Supabase secara otomatis. 
-3. **Performa Tinggi**: Dijalankan secara terdistribusi secara global (Deno Edge) sehingga latensi API untuk aplikasi Flutter kurir di lapangan akan sangat kecil.
-
-### Panduan Implementasi Selanjutnya
-1. **Inisialisasi Backend**: Gunakan Supabase CLI (`supabase init`) untuk mulai mengembangkan *Edge Functions* lokal.
-2. **Testing API Mobile**: Setelah Edge Function `sync-proof` dibuat, uji coba integrasi unggah gambar dari aplikasi Dart/Flutter Anda menggunakan kredensial JWT sesi kurir.
+Silakan jalankan `npx supabase db push` dan `npx supabase functions deploy` jika menggunakan instance baru.

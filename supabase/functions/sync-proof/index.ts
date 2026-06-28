@@ -14,8 +14,8 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseClient = createClient(
-      Deno.env.get("VITE_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("VITE_SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
           headers: { Authorization: req.headers.get("Authorization")! },
@@ -44,8 +44,8 @@ Deno.serve(async (req) => {
     // Create a Supabase admin client to bypass RLS for storage if needed
     // or use the regular client if RLS policies are set up correctly.
     const supabaseAdmin = createClient(
-      Deno.env.get("VITE_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("VITE_SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     // 1. Upload the file to Supabase Storage bucket 'bukti_ekspedisi'
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     const filePath = `${user.id}/${fileName}`;
 
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from("bukti_ekspedisi")
+      .from("bukti-surat")
       .upload(filePath, file, {
         contentType: file.type,
         upsert: true,
@@ -66,25 +66,26 @@ Deno.serve(async (req) => {
 
     // 2. Get the public URL for the uploaded file
     const { data: { publicUrl } } = supabaseAdmin.storage
-      .from("bukti_ekspedisi")
+      .from("bukti-surat")
       .getPublicUrl(filePath);
 
     // 3. Update the surat_ekspedisi row in the database
     const { error: dbError } = await supabaseAdmin
       .from("surat_ekspedisi")
       .update({
-        foto_bukti: publicUrl,
+        foto_bukti_url: publicUrl,
         foto_hash: hash,
         foto_latitude: lat ? parseFloat(lat) : null,
         foto_longitude: lon ? parseFloat(lon) : null,
         status: "diterima",
-        needs_upload: false,
+        is_synced: true,
+        tanggal_penerimaan: new Date().toISOString(),
       })
-      .eq("id", surat_id);
+      .eq("uuid", surat_id);
 
     if (dbError) {
       // Cleanup the uploaded file if DB update fails
-      await supabaseAdmin.storage.from("bukti_ekspedisi").remove([filePath]);
+      await supabaseAdmin.storage.from("bukti-surat").remove([filePath]);
       throw new Error(`Failed to update database: ${dbError.message}`);
     }
 
