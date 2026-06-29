@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import Skeleton from '../../components/ui/Skeleton';
+import Dialog from '../../components/ui/Dialog';
 
 export default function DivisiManagement() {
   const [divisiList, setDivisiList] = useState([]);
@@ -11,6 +12,7 @@ export default function DivisiManagement() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
   const [formData, setFormData] = useState({ kode_divisi: '', nama_divisi: '' });
+  const [deleteTarget, setDeleteTarget] = useState(null); // For Custom Dialog
 
   useEffect(() => {
     fetchDivisi();
@@ -84,20 +86,21 @@ export default function DivisiManagement() {
     setIsEditing(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Yakin ingin menghapus divisi ini?')) return;
-    
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
-      // Soft delete
+      // Hard delete
       const { error } = await supabase
         .from('divisi')
-        .update({ is_active: false, updated_at: new Date() })
-        .eq('id', id);
+        .delete()
+        .eq('id', deleteTarget.id);
       
       if (error) throw error;
+      setDeleteTarget(null);
       fetchDivisi();
     } catch (err) {
-      alert(err.message);
+      setError(err.message);
+      setDeleteTarget(null);
     }
   };
 
@@ -218,7 +221,7 @@ export default function DivisiManagement() {
                             Edit
                           </button>
                           <button 
-                            onClick={() => handleDelete(divisi.id)}
+                            onClick={() => setDeleteTarget({ id: divisi.id, nama_divisi: divisi.nama_divisi })}
                             className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium px-2 py-1"
                           >
                             Hapus
@@ -233,6 +236,17 @@ export default function DivisiManagement() {
           </div>
         </div>
       </div>
+
+      <Dialog
+        isOpen={!!deleteTarget}
+        title="Hapus Divisi"
+        message={`Apakah Anda yakin ingin menghapus divisi "${deleteTarget?.nama_divisi}"? Tindakan ini akan menghapus divisi secara permanen dari database.`}
+        type="alert"
+        confirmText="Hapus"
+        cancelText="Batal"
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

@@ -3,6 +3,11 @@ import { supabase } from '../../lib/supabase';
 import Skeleton from '../../components/ui/Skeleton';
 import { Download01Icon, PrinterIcon, Cancel01Icon } from 'hugeicons-react';
 
+const truncateText = (text, maxLength = 12) => {
+  if (!text) return '-';
+  return text.length > maxLength ? text.slice(0, maxLength) + '..' : text;
+};
+
 export default function DivisiSuratViewer() {
   const [suratList, setSuratList] = useState([]);
   const [divisiList, setDivisiList] = useState([]);
@@ -22,22 +27,64 @@ export default function DivisiSuratViewer() {
   useEffect(() => {
     fetchUserData();
     fetchDivisi();
-    fetchSurat();
   }, []);
 
   const fetchUserData = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data } = await supabase
+        // Try getting division from public.users table first
+        const { data, error } = await supabase
           .from('users')
           .select('divisi_id')
           .eq('id', session.user.id)
-          .single();
-        if (data) setCurrentDivisiId(data.divisi_id);
+          .maybeSingle();
+        
+        let divisiId = data?.divisi_id;
+        
+        // Fallback: Parse from email (e.g. ict_joe@pttimah.com -> ict)
+        if (!divisiId && session.user.email) {
+          const emailName = session.user.email.split('@')[0];
+          const kodeDivisiFromEmail = emailName.includes('_') ? emailName.split('_')[0] : emailName;
+          
+          if (kodeDivisiFromEmail) {
+            const { data: divisiData } = await supabase
+              .from('divisi')
+              .select('id')
+              .ilike('kode_divisi', kodeDivisiFromEmail)
+              .maybeSingle();
+            
+            if (divisiData) {
+              divisiId = divisiData.id;
+            }
+          }
+        }
+        
+        if (divisiId) {
+          setCurrentDivisiId(divisiId);
+          setError(null);
+          
+          // Trigger surat fetch with the resolved divisiId
+          fetchSurat(divisiId);
+
+          // Sync resolved division to public.users table if missing
+          if (!data?.divisi_id) {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ divisi_id: divisiId })
+              .eq('id', session.user.id);
+            
+            if (updateError) {
+              console.warn('Gagal sinkronisasi divisi_id ke tabel users:', updateError.message);
+            }
+          }
+        } else {
+          throw new Error(`Format email ${session.user.email} tidak terasosiasi dengan kode divisi terdaftar di database.`);
+        }
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
+      setError('Gagal mendeteksi divisi pengirim Anda: ' + err.message);
     }
   };
 
@@ -51,10 +98,10 @@ export default function DivisiSuratViewer() {
     }
   };
 
-  const fetchSurat = async () => {
+  const fetchSurat = async (divisiId) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('surat_ekspedisi')
         .select(`
           uuid, 
@@ -66,6 +113,12 @@ export default function DivisiSuratViewer() {
           divisi_tujuan:divisi_tujuan_id (nama_divisi)
         `)
         .order('tanggal_surat', { ascending: false });
+
+      if (divisiId) {
+        query = query.or(`divisi_pengirim_id.eq.${divisiId},divisi_tujuan_id.eq.${divisiId}`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setSuratList(data || []);
@@ -111,7 +164,7 @@ export default function DivisiSuratViewer() {
       
       setShowCreateModal(false);
       setFormData({ perihal: '', divisi_tujuan_id: '', nama_penerima: '' });
-      fetchSurat();
+      fetchSurat(currentDivisiId);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -225,10 +278,18 @@ export default function DivisiSuratViewer() {
               ) : (
                 suratList.map((surat) => (
                   <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{surat.nomor_surat}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_pengirim?.nama_divisi || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.divisi_tujuan?.nama_divisi || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100 max-w-xs truncate" title={surat.perihal}>{surat.perihal}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" title={surat.nomor_surat}>
+                      {truncateText(surat.nomor_surat, 12)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_pengirim?.nama_divisi || '-'}>
+                      {truncateText(surat.divisi_pengirim?.nama_divisi || '-', 15)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_tujuan?.nama_divisi || '-'}>
+                      {truncateText(surat.divisi_tujuan?.nama_divisi || '-', 15)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100 max-w-xs truncate" title={surat.perihal}>
+                      {truncateText(surat.perihal, 20)}
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.tanggal_surat}</td>
                     <td className="px-6 py-4 text-sm">
                       {getStatusBadge(surat.status)}

@@ -7,7 +7,7 @@ export default function Navbar({ onMenuClick, hideProfile, onToggleFullscreen, i
       <div className="flex items-center gap-4">
         <button 
           onClick={onMenuClick}
-          className="p-2 -ml-2 rounded-md lg:hidden text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+          className="p-2 -ml-2 rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         >
           <Menu01Icon size={24} />
         </button>
@@ -44,12 +44,6 @@ export default function Navbar({ onMenuClick, hideProfile, onToggleFullscreen, i
           >
             {isFullscreen ? <ArrowShrinkIcon size={20} /> : <ArrowExpandIcon size={20} />}
           </button>
-        )}
-
-        {!hideProfile && (
-          <div className="hidden sm:flex h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-300">
-            U
-          </div>
         )}
       </div>
     </header>

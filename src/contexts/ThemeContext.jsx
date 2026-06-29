@@ -2,10 +2,37 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext();
 
+// Safe wrapper helper functions to prevent SecurityError in blocked environments
+const getSafeLocalStorage = (key, fallback) => {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved || fallback;
+  } catch (e) {
+    console.warn("Access to localStorage is blocked. Falling back to in-memory state.", e);
+    return fallback;
+  }
+};
+
+const setSafeLocalStorage = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    // Silently catch error
+  }
+};
+
+const removeSafeLocalStorage = (key) => {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    // Silently catch error
+  }
+};
+
 export function ThemeProvider({ children }) {
   // Check local storage or system preference
   const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('theme');
+    const saved = getSafeLocalStorage('theme', null);
     if (saved) return saved;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
@@ -17,10 +44,10 @@ export function ThemeProvider({ children }) {
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
-      localStorage.removeItem('theme'); // clear so it falls back to system check
+      removeSafeLocalStorage('theme'); // clear so it falls back to system check
     } else {
       root.classList.add(theme);
-      localStorage.setItem('theme', theme);
+      setSafeLocalStorage('theme', theme);
     }
   }, [theme]);
 
@@ -28,7 +55,7 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
-      if (!localStorage.getItem('theme')) {
+      if (!getSafeLocalStorage('theme', null)) {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
         root.classList.add(e.matches ? 'dark' : 'light');

@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from '@tanstack/react-router';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
-import { DashboardSquare01Icon, Mail01Icon } from 'hugeicons-react';
+import { DashboardSquare01Icon, Mail01Icon, Settings02Icon } from 'hugeicons-react';
 
 const divisiNavigation = [
   { name: 'Dashboard', href: '/divisi/dashboard', icon: DashboardSquare01Icon },
   { name: 'Surat Masuk / Keluar', href: '/divisi/surat', icon: Mail01Icon },
+  { name: 'Pengaturan', href: '/divisi/settings', icon: Settings02Icon },
 ];
 
 export default function DivisiLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
   const toggleFullscreen = () => {
@@ -49,7 +50,7 @@ export default function DivisiLayout() {
       
       <div className="flex flex-1 flex-col overflow-hidden">
         <Navbar 
-          onMenuClick={() => setSidebarOpen(true)} 
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)} 
           hideProfile={true}
           onToggleFullscreen={toggleFullscreen}
           isFullscreen={isFullscreen}
