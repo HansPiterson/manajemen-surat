@@ -65,38 +65,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleInlineStatusChange = async (uuid, newStatus) => {
-    try {
-      const { error } = await supabase
-        .from('surat_ekspedisi')
-        .update({ 
-          status: newStatus, 
-          updated_at: new Date() 
-        })
-        .eq('uuid', uuid);
 
-      if (error) throw error;
-      
-      // Update local state first for instant feedback, then refetch stats asynchronously
-      setRecentActivity(prev => prev.map(item => 
-        item.uuid === uuid ? { ...item, status: newStatus } : item
-      ));
-      
-      // Fetch stats again to update the card numbers
-      const { data: allSurat } = await supabase
-        .from('surat_ekspedisi')
-        .select('status');
-      if (allSurat) {
-        const total = allSurat.length;
-        const draft = allSurat.filter(s => s.status === 'draft').length;
-        const dikirim = allSurat.filter(s => s.status === 'dikirim').length;
-        const diterima = allSurat.filter(s => s.status === 'diterima').length;
-        setStats({ total, draft, dikirim, diterima });
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -172,7 +141,9 @@ export default function Dashboard() {
                       </td>
                     </tr>
                   ) : (
-                    recentActivity.map((surat) => (
+                    recentActivity.map((surat) => {
+                      const isDiterima = String(surat.status || '').toLowerCase().trim() === 'diterima';
+                      return (
                       <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                         <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" title={surat.nomor_surat}>
                           {truncateText(surat.nomor_surat, 12)}
@@ -187,23 +158,22 @@ export default function Dashboard() {
                           {truncateText(surat.perihal, 20)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.tanggal_surat}</td>
-                        <td className="px-6 py-4 text-sm w-48">
-                          <Select
-                            value={surat.status}
-                            onChange={(e) => handleInlineStatusChange(surat.uuid, e.target.value)}
-                            options={[
-                              { value: 'draft', label: 'Draft' },
-                              { value: 'dikirim', label: 'Dikirim' },
-                              { value: 'diterima', label: 'Sync (Diterima)' }
-                            ]}
-                            className={
-                              surat.status === 'draft' 
-                                ? '!bg-slate-50 dark:!bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-semibold'
-                                : surat.status === 'dikirim'
-                                ? '!bg-yellow-50/50 dark:!bg-yellow-950/20 border-yellow-200 dark:border-yellow-900/40 text-yellow-800 dark:text-yellow-400 font-semibold'
-                                : '!bg-blue-50/50 dark:!bg-blue-950/20 border-blue-200 dark:border-blue-900/40 text-blue-800 dark:text-blue-400 font-semibold'
-                            }
-                          />
+                        <td className="px-6 py-4 text-sm whitespace-nowrap">
+                          {surat.status === 'draft' && (
+                            <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/10">
+                              Draft
+                            </span>
+                          )}
+                          {surat.status === 'dikirim' && (
+                            <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+                              Sedang Dikirim
+                            </span>
+                          )}
+                          {isDiterima && (
+                            <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                              Sync (Diterima)
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-sm text-center">
                           <Link 
@@ -215,7 +185,8 @@ export default function Dashboard() {
                           </Link>
                         </td>
                       </tr>
-                    ))
+                    );
+                  })
                   )}
                 </tbody>
               </table>

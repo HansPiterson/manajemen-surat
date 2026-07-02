@@ -62,6 +62,7 @@ export default function SuratViewer() {
   const [editingSurat, setEditingSurat] = useState(null);   // For Edit Modal
   const [showCreateModal, setShowCreateModal] = useState(false); // For Create Modal
   const [deleteTarget, setDeleteTarget] = useState(null);   // For Custom Confirmation Dialog
+  const [syncTarget, setSyncTarget] = useState(null);       // For Sync Confirmation Dialog
   
   const [formLoading, setFormLoading] = useState(false);
   
@@ -177,6 +178,10 @@ export default function SuratViewer() {
   };
 
   const handleEditClick = (surat) => {
+    if (String(surat.status || '').toLowerCase().trim() === 'diterima') {
+      setError('Surat dengan status "sync" bersifat permanen dan tidak dapat diedit.');
+      return;
+    }
     setEditingSurat(surat);
     setFormData({
       perihal: surat.perihal,
@@ -192,53 +197,70 @@ export default function SuratViewer() {
     setFormLoading(true);
     setError(null);
     try {
-      const { error } = await supabase
-        .from('surat_ekspedisi')
-        .update({
-          perihal: formData.perihal,
-          divisi_pengirim_id: formData.divisi_pengirim_id,
-          divisi_tujuan_id: formData.divisi_tujuan_id,
-          nama_penerima: formData.nama_penerima || null,
-          status: formData.status,
-          updated_at: new Date()
-        })
-        .eq('uuid', editingSurat.uuid);
+      if (editingSurat && String(editingSurat.status || '').toLowerCase().trim() === 'diterima') {
+        setError('Surat dengan status "sync" bersifat permanen dan tidak dapat diubah.');
+        setFormLoading(false);
+        return;
+      }
 
-      if (error) throw error;
+      if (String(formData.status).toLowerCase().trim() === 'diterima') {
+        setSyncTarget({ uuid: editingSurat.uuid, newStatus: 'diterima', fromEditModal: true });
+        setFormLoading(false);
+        return;
+      }
 
-      setEditingSurat(null);
-      resetForm();
-      fetchSurat();
+      await executeEditSubmit();
     } catch (err) {
       setError(err.message);
-    } finally {
       setFormLoading(false);
     }
   };
 
-  const handleInlineStatusChange = async (uuid, newStatus) => {
-    try {
-      const { error } = await supabase
-        .from('surat_ekspedisi')
-        .update({ 
-          status: newStatus, 
-          updated_at: new Date() 
-        })
-        .eq('uuid', uuid);
+  const executeEditSubmit = async () => {
+    const { error } = await supabase
+      .from('surat_ekspedisi')
+      .update({
+        perihal: formData.perihal,
+        divisi_pengirim_id: formData.divisi_pengirim_id,
+        divisi_tujuan_id: formData.divisi_tujuan_id,
+        nama_penerima: formData.nama_penerima || null,
+        status: formData.status,
+        updated_at: new Date()
+      })
+      .eq('uuid', editingSurat.uuid);
 
-      if (error) throw error;
-      
-      setSuratList(prev => prev.map(item => 
-        item.uuid === uuid ? { ...item, status: newStatus } : item
-      ));
+    if (error) throw error;
+
+    setEditingSurat(null);
+    resetForm();
+    fetchSurat();
+  };
+
+  const handleSyncConfirm = async () => {
+    if (!syncTarget) return;
+    setFormLoading(true);
+    try {
+      if (syncTarget.fromEditModal) {
+        await executeEditSubmit();
+      }
+      setSyncTarget(null);
     } catch (err) {
       setError(err.message);
+      setSyncTarget(null);
+    } finally {
+      setFormLoading(false);
     }
   };
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     try {
+      const currentSurat = suratList.find(item => item.uuid === deleteTarget.uuid);
+      if (currentSurat && String(currentSurat.status || '').toLowerCase().trim() === 'diterima') {
+        setError('Surat dengan status "sync" bersifat permanen dan tidak dapat dihapus.');
+        setDeleteTarget(null);
+        return;
+      }
       const { error } = await supabase
         .from('surat_ekspedisi')
         .delete()
@@ -373,6 +395,7 @@ export default function SuratViewer() {
               ) : (
                 sortedSuratList.map((surat) => {
                   const isHighlight = highlightId === surat.uuid;
+                  const isDiterima = String(surat.status || '').toLowerCase().trim() === 'diterima';
                   return (
                   <tr key={surat.uuid} className={`transition-all duration-1000 ease-in-out ${isHighlight ? 'bg-blue-600 dark:bg-blue-600' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
                     <td className={`px-6 py-4 text-sm font-medium transition-colors duration-1000 ${isHighlight ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`} title={surat.nomor_surat}>
@@ -388,20 +411,22 @@ export default function SuratViewer() {
                       {truncateText(surat.perihal, 20)}
                     </td>
                     <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`}>{surat.tanggal_surat}</td>
-                    <td className="px-6 py-4 text-sm">
-                      {/* Custom Select Component for Status */}
-                      <Select
-                        value={surat.status}
-                        onChange={(e) => handleInlineStatusChange(surat.uuid, e.target.value)}
-                        options={statusOptions}
-                        className={
-                          surat.status === 'draft' 
-                            ? '!bg-slate-50 dark:!bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-semibold'
-                            : surat.status === 'dikirim'
-                            ? '!bg-yellow-50/50 dark:!bg-yellow-950/20 border-yellow-200 dark:border-yellow-900/40 text-yellow-800 dark:text-yellow-400 font-semibold'
-                            : '!bg-blue-50/50 dark:!bg-blue-950/20 border-blue-200 dark:border-blue-900/40 text-blue-800 dark:text-blue-400 font-semibold'
-                        }
-                      />
+                    <td className="px-6 py-4 text-sm whitespace-nowrap">
+                      {surat.status === 'draft' && (
+                        <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/10">
+                          Draft
+                        </span>
+                      )}
+                      {surat.status === 'dikirim' && (
+                        <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+                          Sedang Dikirim
+                        </span>
+                      )}
+                      {isDiterima && (
+                        <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                          Sync (Diterima)
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -414,21 +439,25 @@ export default function SuratViewer() {
                           <Eye size={18} />
                         </button>
                         {/* Edit Icon */}
-                        <button 
-                          onClick={() => handleEditClick(surat)}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-                          title="Edit Surat"
-                        >
-                          <Pencil size={18} />
-                        </button>
+                        {!isDiterima && (
+                          <button 
+                            onClick={() => handleEditClick(surat)}
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                            title="Edit Surat"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
                         {/* Delete Icon */}
-                        <button 
-                          onClick={() => setDeleteTarget({ uuid: surat.uuid, nomor_surat: surat.nomor_surat })}
-                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                          title="Hapus Surat"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {!isDiterima && (
+                          <button 
+                            onClick={() => setDeleteTarget({ uuid: surat.uuid, nomor_surat: surat.nomor_surat })}
+                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                            title="Hapus Surat"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -442,7 +471,7 @@ export default function SuratViewer() {
 
       {/* Detail & Preview Modal */}
       {selectedSurat && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] animate-scale-up">
             
             {/* Modal Header */}
@@ -591,7 +620,7 @@ export default function SuratViewer() {
 
       {/* Edit Surat Modal */}
       {editingSurat && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] animate-scale-up">
             
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
@@ -683,7 +712,7 @@ export default function SuratViewer() {
 
       {/* Create Surat Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] animate-scale-up">
             
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
@@ -784,6 +813,17 @@ export default function SuratViewer() {
         cancelText="Batal"
         onConfirm={handleDeleteConfirm}
         onClose={() => setDeleteTarget(null)}
+      />
+      {/* Sync Confirmation Dialog */}
+      <Dialog
+        isOpen={!!syncTarget}
+        title="Konfirmasi Sync (Diterima)"
+        message="Apakah Anda yakin ingin mengubah status surat ini menjadi Sync (Diterima)? Setelah disinkronkan, surat ini akan bersifat PERMANEN dan tidak dapat diedit atau dihapus lagi."
+        type="confirm"
+        confirmText="Ya, Sinkronkan"
+        cancelText="Batal"
+        onConfirm={handleSyncConfirm}
+        onClose={() => setSyncTarget(null)}
       />
       <FilterPopup
         isOpen={isFilterOpen}

@@ -1,6 +1,6 @@
 # Surat Ekspedisi Digital (Manajemen Surat)
 
-Aplikasi manajemen ekspedisi surat digital untuk PT Timah. Dibangun dengan React (Vite), Tailwind CSS v4, dan Supabase.
+Aplikasi manajemen ekspedisi surat digital untuk PT Timah. Dibangun dengan React (Vite), Tailwind CSS v4, dan Supabase Database.
 
 ## Fitur Utama
 - **Dashboard Admin**: Mengelola seluruh divisi, memantau statistik surat masuk/keluar secara global, dan memverifikasi bukti pengiriman foto (dengan validasi *Hash Anti-Tampering* dan *Geotagging*).
