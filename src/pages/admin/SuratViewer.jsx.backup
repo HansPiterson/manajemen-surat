@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatDate } from '../../lib/utils';
-import { api } from '../../lib/api';
+import { supabase } from '../../lib/supabase';
 import Skeleton from '../../components/ui/Skeleton';
 import FilterPopup from '../../components/ui/FilterPopup';
 import Select from '../../components/ui/Select';
@@ -93,8 +92,11 @@ export default function SuratViewer() {
 
   const fetchDivisi = async () => {
     try {
-      const { data, error } = await api.getDivisi();
-      if (error) throw new Error(error);
+      const { data, error } = await supabase
+        .from('divisi')
+        .select('id, nama_divisi')
+        .eq('is_active', true);
+      if (error) throw error;
       setDivisiList(data || []);
     } catch (err) {
       console.error('Error fetching divisi:', err);
@@ -104,8 +106,27 @@ export default function SuratViewer() {
   const fetchSurat = async () => {
     setLoading(true);
     try {
-      const { data, error } = await api.getSurat();
-      if (error) throw new Error(error);
+      const { data, error } = await supabase
+        .from('surat_ekspedisi')
+        .select(`
+          uuid, 
+          nomor_surat, 
+          perihal, 
+          tanggal_surat, 
+          status,
+          foto_bukti_url,
+          foto_latitude,
+          foto_longitude,
+          foto_hash,
+          divisi_pengirim_id,
+          divisi_tujuan_id,
+          nama_penerima,
+          divisi_pengirim:divisi_pengirim_id (nama_divisi),
+          divisi_tujuan:divisi_tujuan_id (nama_divisi)
+        `)
+        .order('tanggal_surat', { ascending: false });
+
+      if (error) throw error;
       setSuratList(data || []);
     } catch (err) {
       setError(err.message);
@@ -132,17 +153,19 @@ export default function SuratViewer() {
       const randomId = Math.floor(1000 + Math.random() * 9000);
       const nomor_surat = `EKS-${dateStr}-${randomId}`;
 
-      const { error: createError } = await api.createSurat({
-        nomor_surat,
-        perihal: formData.perihal,
-        tanggal_surat: new Date(),
-        status: formData.status,
-        divisi_pengirim_id: formData.divisi_pengirim_id,
-        divisi_tujuan_id: formData.divisi_tujuan_id,
-        nama_penerima: formData.nama_penerima || null
-      });
+      const { error } = await supabase
+        .from('surat_ekspedisi')
+        .insert([{
+          nomor_surat,
+          perihal: formData.perihal,
+          tanggal_surat: new Date(),
+          status: formData.status,
+          divisi_pengirim_id: formData.divisi_pengirim_id,
+          divisi_tujuan_id: formData.divisi_tujuan_id,
+          nama_penerima: formData.nama_penerima || null
+        }]);
       
-      if (createError) throw new Error(createError);
+      if (error) throw error;
       
       setShowCreateModal(false);
       resetForm();
@@ -194,15 +217,19 @@ export default function SuratViewer() {
   };
 
   const executeEditSubmit = async () => {
-    const { error: editError } = await api.updateSurat(editingSurat.uuid, {
-      perihal: formData.perihal,
-      divisi_pengirim_id: formData.divisi_pengirim_id,
-      divisi_tujuan_id: formData.divisi_tujuan_id,
-      nama_penerima: formData.nama_penerima || null,
-      status: formData.status
-    });
+    const { error } = await supabase
+      .from('surat_ekspedisi')
+      .update({
+        perihal: formData.perihal,
+        divisi_pengirim_id: formData.divisi_pengirim_id,
+        divisi_tujuan_id: formData.divisi_tujuan_id,
+        nama_penerima: formData.nama_penerima || null,
+        status: formData.status,
+        updated_at: new Date()
+      })
+      .eq('uuid', editingSurat.uuid);
 
-    if (editError) throw new Error(editError);
+    if (error) throw error;
 
     setEditingSurat(null);
     resetForm();
@@ -234,8 +261,12 @@ export default function SuratViewer() {
         setDeleteTarget(null);
         return;
       }
-      const { error: delError } = await api.deleteSurat(deleteTarget.uuid);
-      if (delError) throw new Error(delError);
+      const { error } = await supabase
+        .from('surat_ekspedisi')
+        .delete()
+        .eq('uuid', deleteTarget.uuid);
+
+      if (error) throw error;
       setDeleteTarget(null);
       fetchSurat();
     } catch (err) {
@@ -370,16 +401,16 @@ export default function SuratViewer() {
                     <td className={`px-6 py-4 text-sm font-medium transition-colors duration-1000 ${isHighlight ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`} title={surat.nomor_surat}>
                       {truncateText(surat.nomor_surat, 12)}
                     </td>
-                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.divisi_pengirim_nama || '-'}>
-                      {truncateText(surat.divisi_pengirim_nama || '-', 15)}
+                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.divisi_pengirim?.nama_divisi || '-'}>
+                      {truncateText(surat.divisi_pengirim?.nama_divisi || '-', 15)}
                     </td>
-                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.divisi_tujuan_nama || '-'}>
-                      {truncateText(surat.divisi_tujuan_nama || '-', 15)}
+                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.divisi_tujuan?.nama_divisi || '-'}>
+                      {truncateText(surat.divisi_tujuan?.nama_divisi || '-', 15)}
                     </td>
                     <td className={`px-6 py-4 text-sm max-w-xs truncate transition-colors duration-1000 ${isHighlight ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`} title={surat.perihal}>
                       {truncateText(surat.perihal, 20)}
                     </td>
-                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`}>{formatDate(surat.tanggal_surat)}</td>
+                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`}>{surat.tanggal_surat}</td>
                     <td className="px-6 py-4 text-sm whitespace-nowrap">
                       {surat.status === 'draft' && (
                         <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/10">
@@ -478,21 +509,21 @@ export default function SuratViewer() {
                   <p className="text-xs text-slate-500 dark:text-slate-400">Tanggal Pembuatan</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                     <Calendar size={14} className="text-slate-400" />
-                    {formatDate(selectedSurat.tanggal_surat)}
+                    {new Date(selectedSurat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500 dark:text-slate-400">Divisi Pengirim</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                     <Building size={14} className="text-slate-400" />
-                    {selectedSurat.divisi_pengirim_nama || '-'}
+                    {selectedSurat.divisi_pengirim?.nama_divisi || '-'}
                   </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500 dark:text-slate-400">Divisi Tujuan</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                     <Building size={14} className="text-slate-400" />
-                    {selectedSurat.divisi_tujuan_nama || '-'}
+                    {selectedSurat.divisi_tujuan?.nama_divisi || '-'}
                   </p>
                 </div>
                 <div className="space-y-1">

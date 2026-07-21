@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Outlet } from '@tanstack/react-router';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import LoadingScreen from './ui/LoadingScreen';
 
 export default function AuthWrapper({ allowedRole }) {
@@ -11,94 +11,39 @@ export default function AuthWrapper({ allowedRole }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          // Not logged in
+        // Check if token exists
+        if (!api.isAuthenticated()) {
           navigate({ to: '/' });
           return;
         }
 
-        // Fetch user role from database and enforce allowedRole
-        let { data: userData, error: roleError } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (!userData) {
-          // If the profile row is missing from public.users table, attempt self-healing recreation
-          if (session.user.email) {
-            const isDivision = !session.user.email.includes('admin');
-            let divisiId = null;
-
-            if (isDivision) {
-              const emailName = session.user.email.split('@')[0];
-              const kodeDivisiFromEmail = emailName.includes('_') ? emailName.split('_')[0] : emailName;
-              if (kodeDivisiFromEmail) {
-                const { data: divisiData } = await supabase
-                  .from('divisi')
-                  .select('id')
-                  .ilike('kode_divisi', kodeDivisiFromEmail)
-                  .maybeSingle();
-                if (divisiData) divisiId = divisiData.id;
-              }
-            }
-
-            const { data: insertedUser, error: insertError } = await supabase
-              .from('users')
-              .insert({
-                id: session.user.id,
-                email: session.user.email,
-                role: isDivision ? 'divisi' : 'admin',
-                divisi_id: divisiId,
-                nama_lengkap: session.user.email.split('@')[0]
-              })
-              .select('role')
-              .maybeSingle();
-
-            if (!insertError && insertedUser) {
-              userData = insertedUser;
-            } else {
-              throw new Error('User profile record missing in database and auto-recreation failed: ' + (insertError?.message || 'Unknown error'));
-            }
-          } else {
-            throw new Error('User profile not found.');
-          }
+        // Get user profile
+        const { data: userData, error } = await api.getProfile();
+        
+        if (error || !userData) {
+          api.logout();
+          navigate({ to: '/' });
+          return;
         }
 
-        if (userData.role !== allowedRole) {
-          // Redirect to correct dashboard based on actual role
-          if (userData.role === 'admin') {
-            navigate({ to: '/admin/dashboard' });
-          } else {
-            navigate({ to: '/divisi/dashboard' });
-          }
+        // Check role permission
+        if (allowedRole && userData.role !== allowedRole) {
+          setAuthorized(false);
+          navigate({ to: '/' });
           return;
         }
 
         setAuthorized(true);
       } catch (error) {
-        console.error('Auth error:', error);
+        console.error('Auth check failed:', error);
+        api.logout();
         navigate({ to: '/' });
       } finally {
-        // Add a slight delay for smooth visual transition
-        setTimeout(() => {
-          setLoading(false);
-        }, 800);
+        setLoading(false);
       }
     };
 
     checkAuth();
-
-    // Listen for auth changes (like logout from another tab)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        navigate({ to: '/' });
-      }
-    });
-
-    return () => subscription.unsubscribe();
   }, [navigate, allowedRole]);
 
   if (loading) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import Skeleton from '../../components/ui/Skeleton';
 import Dialog from '../../components/ui/Dialog';
 
@@ -12,7 +12,7 @@ export default function DivisiManagement() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
   const [formData, setFormData] = useState({ kode_divisi: '', nama_divisi: '' });
-  const [deleteTarget, setDeleteTarget] = useState(null); // For Custom Dialog
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   useEffect(() => {
     fetchDivisi();
@@ -21,24 +21,14 @@ export default function DivisiManagement() {
   const fetchDivisi = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('divisi')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setDivisiList(data || []);
+      const { data, error } = await api.getDivisi();
+      if (error) throw new Error(error);
+      setDivisiList(data ?? []);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -48,27 +38,13 @@ export default function DivisiManagement() {
 
     try {
       if (isEditing) {
-        const { error } = await supabase
-          .from('divisi')
-          .update({
-            kode_divisi: formData.kode_divisi,
-            nama_divisi: formData.nama_divisi,
-            updated_at: new Date()
-          })
-          .eq('id', currentId);
-        
-        if (error) throw error;
+        const { error } = await api.updateDivisi(currentId, formData);
+        if (error) throw new Error(error);
       } else {
-        const { error } = await supabase
-          .from('divisi')
-          .insert([{
-            kode_divisi: formData.kode_divisi,
-            nama_divisi: formData.nama_divisi
-          }]);
-        
-        if (error) throw error;
+        const { error } = await api.createDivisi(formData);
+        if (error) throw new Error(error);
       }
-
+      
       setFormData({ kode_divisi: '', nama_divisi: '' });
       setIsEditing(false);
       setCurrentId(null);
@@ -81,159 +57,144 @@ export default function DivisiManagement() {
   };
 
   const handleEdit = (divisi) => {
-    setFormData({ kode_divisi: divisi.kode_divisi, nama_divisi: divisi.nama_divisi });
-    setCurrentId(divisi.id);
     setIsEditing(true);
+    setCurrentId(divisi.id);
+    setFormData({
+      kode_divisi: divisi.kode_divisi,
+      nama_divisi: divisi.nama_divisi,
+    });
   };
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
+
+    setFormLoading(true);
     try {
-      // Hard delete
-      const { error } = await supabase
-        .from('divisi')
-        .delete()
-        .eq('id', deleteTarget.id);
-      
-      if (error) throw error;
-      setDeleteTarget(null);
+      const { error } = await api.deleteDivisi(deleteTarget.id);
+      if (error) throw new Error(error);
       fetchDivisi();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setFormLoading(false);
       setDeleteTarget(null);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="mb-6">
+      <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Manajemen Divisi</h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-1">Kelola data divisi perusahaan (CRUD).</p>
+        <p className="text-slate-600 dark:text-slate-400 mt-1">Kelola divisi dalam organisasi</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form */}
-        <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-50">
-              {isEditing ? 'Edit Divisi' : 'Tambah Divisi Baru'}
-            </h2>
-            
-            {error && <div className="mb-4 text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">{error}</div>}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kode Divisi</label>
-                <input
-                  type="text"
-                  name="kode_divisi"
-                  value={formData.kode_divisi}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Misal: HRD"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Divisi</label>
-                <input
-                  type="text"
-                  name="nama_divisi"
-                  value={formData.nama_divisi}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Misal: Human Resources"
-                />
-              </div>
-              
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md font-medium transition-colors disabled:opacity-50"
-                >
-                  {formLoading ? 'Menyimpan...' : (isEditing ? 'Update' : 'Simpan')}
-                </button>
-                {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setFormData({ kode_divisi: '', nama_divisi: '' });
-                      setCurrentId(null);
-                    }}
-                    className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-2 px-4 rounded-md font-medium transition-colors"
-                  >
-                    Batal
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
         </div>
+      )}
 
-        {/* List */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Daftar Divisi</h2>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-sm">
-                    <th className="px-6 py-3 font-medium">Kode</th>
-                    <th className="px-6 py-3 font-medium">Nama Divisi</th>
-                    <th className="px-6 py-3 font-medium text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {loading ? (
-                    // Skeleton Loading
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <tr key={i}>
-                        <td className="px-6 py-4"><Skeleton className="h-5 w-16" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-5 w-32" /></td>
-                        <td className="px-6 py-4 flex justify-end gap-2">
-                          <Skeleton className="h-8 w-16" />
-                          <Skeleton className="h-8 w-16" />
-                        </td>
-                      </tr>
-                    ))
-                  ) : divisiList.length === 0 ? (
-                    <tr>
-                      <td colSpan="3" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
-                        Belum ada data divisi.
-                      </td>
-                    </tr>
-                  ) : (
-                    divisiList.map((divisi) => (
-                      <tr key={divisi.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{divisi.kode_divisi}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{divisi.nama_divisi}</td>
-                        <td className="px-6 py-4 text-sm text-right space-x-2">
-                          <button 
-                            onClick={() => handleEdit(divisi)}
-                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium px-2 py-1"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => setDeleteTarget({ id: divisi.id, nama_divisi: divisi.nama_divisi })}
-                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium px-2 py-1"
-                          >
-                            Hapus
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+            {isEditing ? 'Edit Divisi' : 'Tambah Divisi Baru'}
+          </h2>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Kode Divisi
+            </label>
+            <input
+              type="text"
+              value={formData.kode_divisi}
+              onChange={(e) => setFormData({ ...formData, kode_divisi: e.target.value })}
+              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50"
+              required
+            />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Nama Divisi
+            </label>
+            <input
+              type="text"
+              value={formData.nama_divisi}
+              onChange={(e) => setFormData({ ...formData, nama_divisi: e.target.value })}
+              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50"
+              required
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={formLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {formLoading ? 'Menyimpan...' : isEditing ? 'Update' : 'Tambah'}
+            </button>
+            {isEditing && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setCurrentId(null);
+                  setFormData({ kode_divisi: '', nama_divisi: '' });
+                }}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
+              >
+                Batal
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Daftar Divisi</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50 dark:bg-slate-900/50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Kode</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nama</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {divisiList.map((divisi) => (
+                <tr key={divisi.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                  <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{divisi.kode_divisi}</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{divisi.nama_divisi}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <button
+                      onClick={() => handleEdit(divisi)}
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 mr-4"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(divisi)}
+                      className="text-red-600 hover:text-red-700 dark:text-red-400"
+                    >
+                      Hapus
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

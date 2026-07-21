@@ -2,96 +2,81 @@ import React from 'react';
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import { Logout02Icon, Cancel01Icon } from 'hugeicons-react';
 import { Search } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 export default function Sidebar({ isOpen, onClose, items, title = "Menu", isHidden = false, className = '', onSearchClick }) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      navigate({ to: '/' });
-    } catch (error) {
-      alert('Error logging out: ' + error.message);
-    }
+  const handleLogout = () => {
+    api.logout();
+    navigate({ to: '/' });
   };
 
   return (
     <>
-      {/* Mobile backdrop */}
+      {/* Mobile overlay */}
       {isOpen && !isHidden && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-sm"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar */}
-      <aside 
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 transition-all duration-300 ease-in-out flex flex-col ${
-          isOpen 
-            ? 'translate-x-0 lg:w-64 lg:static lg:translate-x-0' 
-            : '-translate-x-full lg:w-0 lg:static lg:translate-x-0 lg:overflow-hidden lg:border-none lg:pointer-events-none lg:opacity-0'
-        } ${isHidden ? 'hidden' : ''} ${className}`}
+      <aside
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        } lg:translate-x-0 ${className}`}
       >
-        <div className="flex h-full flex-col px-3 py-4 w-64 shrink-0">
-          <div className="mb-6 px-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{title}</h2>
-            <button 
-              onClick={onClose}
-              className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Tutup Menu"
-            >
-              <Cancel01Icon size={18} />
-            </button>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
+            <div className="flex items-center gap-2">
+              {onSearchClick && (
+                <button
+                  onClick={onSearchClick}
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Search size={20} className="text-slate-600 dark:text-slate-400" />
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Cancel01Icon size={20} className="text-slate-600 dark:text-slate-400" />
+              </button>
+            </div>
           </div>
-          
-          <nav className="flex-1 space-y-1 overflow-y-auto">
-            <button
-              onClick={onSearchClick}
-              className="w-full group flex items-center gap-3 rounded-md px-3 py-2.5 mb-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
-            >
-              <Search size={20} className="shrink-0" />
-              <span>Search</span>
-              <kbd className="ml-auto text-xs font-sans bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">
-                ⌘K
-              </kbd>
-            </button>
-            
-            {items.map((item) => {
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto px-4 py-4">
+            {items.map((item, index) => {
               const Icon = item.icon;
-              const isActive = currentPath.startsWith(item.href);
+              const isActive = currentPath === item.to;
               
               return (
                 <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => {
-                    if (window.innerWidth < 1024) onClose();
-                  }}
-                  className={`group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
-                    isActive 
-                      ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
+                  key={index}
+                  to={item.to}
+                  onClick={onClose}
+                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors mb-1 ${
+                    isActive
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Icon 
-                    size={20} 
-                    className={`shrink-0 ${
-                      isActive 
-                        ? 'text-slate-900 dark:text-slate-100' 
-                        : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-400'
-                    }`} 
-                  />
-                  {item.name}
+                  <Icon size={20} className="shrink-0" />
+                  {item.label}
                 </Link>
               );
             })}
           </nav>
 
+          {/* Logout */}
           <div className="pt-4 mt-auto border-t border-slate-200 dark:border-slate-800 space-y-2">
             <button
               onClick={handleLogout}

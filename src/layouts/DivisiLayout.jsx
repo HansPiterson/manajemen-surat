@@ -5,9 +5,9 @@ import Sidebar from '../components/Sidebar';
 import { DashboardSquare01Icon, Mail01Icon, Settings02Icon } from 'hugeicons-react';
 
 const divisiNavigation = [
-  { name: 'Dashboard', href: '/divisi/dashboard', icon: DashboardSquare01Icon },
-  { name: 'Surat Masuk / Keluar', href: '/divisi/surat', icon: Mail01Icon },
-  { name: 'Pengaturan', href: '/divisi/settings', icon: Settings02Icon },
+  { label: "Dashboard", to: "/divisi/dashboard", icon: DashboardSquare01Icon },
+  { label: "Surat Masuk / Keluar", to: "/divisi/surat", icon: Mail01Icon },
+  { label: "Pengaturan", to: "/divisi/settings", icon: Settings02Icon },
 ];
 
 export default function DivisiLayout() {

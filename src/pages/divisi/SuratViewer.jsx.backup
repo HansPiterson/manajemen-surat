@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../lib/utils';
-import { api } from '../../lib/api';
+import { supabase } from '../../lib/supabase';
 import Skeleton from '../../components/ui/Skeleton';
 import { Download01Icon, PrinterIcon, Cancel01Icon } from 'hugeicons-react';
 
@@ -32,26 +31,67 @@ export default function DivisiSuratViewer() {
 
   const fetchUserData = async () => {
     try {
-      const { data: profile, error: profileError } = await api.getProfile();
-      if (profileError) throw new Error(profileError);
-      const divisiId = profile?.divisi_id;
-      if (divisiId) {
-        setCurrentDivisiId(divisiId);
-        setError(null);
-        fetchSurat(divisiId);
-      } else {
-        setError('Divisi tidak ditemukan. Hubungi administrator.');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Try getting division from public.users table first
+        const { data, error } = await supabase
+          .from('users')
+          .select('divisi_id')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        
+        let divisiId = data?.divisi_id;
+        
+        // Fallback: Parse from email (e.g. ict_joe@pttimah.com -> ict)
+        if (!divisiId && session.user.email) {
+          const emailName = session.user.email.split('@')[0];
+          const kodeDivisiFromEmail = emailName.includes('_') ? emailName.split('_')[0] : emailName;
+          
+          if (kodeDivisiFromEmail) {
+            const { data: divisiData } = await supabase
+              .from('divisi')
+              .select('id')
+              .ilike('kode_divisi', kodeDivisiFromEmail)
+              .maybeSingle();
+            
+            if (divisiData) {
+              divisiId = divisiData.id;
+            }
+          }
+        }
+        
+        if (divisiId) {
+          setCurrentDivisiId(divisiId);
+          setError(null);
+          
+          // Trigger surat fetch with the resolved divisiId
+          fetchSurat(divisiId);
+
+          // Sync resolved division to public.users table if missing
+          if (!data?.divisi_id) {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ divisi_id: divisiId })
+              .eq('id', session.user.id);
+            
+            if (updateError) {
+              console.warn('Gagal sinkronisasi divisi_id ke tabel users:', updateError.message);
+            }
+          }
+        } else {
+          throw new Error(`Format email ${session.user.email} tidak terasosiasi dengan kode divisi terdaftar di database.`);
+        }
       }
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching user data:', err);
+      setError('Gagal mendeteksi divisi pengirim Anda: ' + err.message);
     }
   };
 
   const fetchDivisi = async () => {
     try {
-      const data = await api.getDivisi();
+      const { data, error } = await supabase.from('divisi').select('id, nama_divisi').eq('is_active', true);
+      if (error) throw error;
       setDivisiList(data || []);
     } catch (err) {
       console.error('Error fetching divisi:', err);
@@ -61,8 +101,26 @@ export default function DivisiSuratViewer() {
   const fetchSurat = async (divisiId) => {
     setLoading(true);
     try {
-      const { data, error } = await api.getSurat(divisiId ? { divisi_id: divisiId } : {});
-      if (error) throw new Error(error);
+      let query = supabase
+        .from('surat_ekspedisi')
+        .select(`
+          uuid, 
+          nomor_surat, 
+          perihal, 
+          tanggal_surat, 
+          status,
+          divisi_pengirim:divisi_pengirim_id (nama_divisi),
+          divisi_tujuan:divisi_tujuan_id (nama_divisi)
+        `)
+        .order('tanggal_surat', { ascending: false });
+
+      if (divisiId) {
+        query = query.or(`divisi_pengirim_id.eq.${divisiId},divisi_tujuan_id.eq.${divisiId}`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
       setSuratList(data || []);
     } catch (err) {
       setError(err.message);
@@ -90,17 +148,19 @@ export default function DivisiSuratViewer() {
       const randomId = Math.floor(1000 + Math.random() * 9000);
       const nomor_surat = `EKS-${dateStr}-${randomId}`;
 
-      const { error: createError } = await api.createSurat({
-        nomor_surat,
-        perihal: formData.perihal,
-        tanggal_surat: new Date(),
-        status: 'draft',
-        divisi_pengirim_id: currentDivisiId,
-        divisi_tujuan_id: formData.divisi_tujuan_id,
-        nama_penerima: formData.nama_penerima || null
-      });
-
-      if (createError) throw new Error(createError);
+      const { error } = await supabase
+        .from('surat_ekspedisi')
+        .insert([{
+          nomor_surat,
+          perihal: formData.perihal,
+          tanggal_surat: new Date(),
+          status: 'draft',
+          divisi_pengirim_id: currentDivisiId,
+          divisi_tujuan_id: formData.divisi_tujuan_id,
+          nama_penerima: formData.nama_penerima || null
+        }]);
+      
+      if (error) throw error;
       
       setShowCreateModal(false);
       setFormData({ perihal: '', divisi_tujuan_id: '', nama_penerima: '' });
@@ -120,7 +180,7 @@ export default function DivisiSuratViewer() {
       `"${surat.divisi_pengirim?.nama_divisi || ''}"`,
       `"${surat.divisi_tujuan?.nama_divisi || ''}"`,
       `"${surat.perihal}"`,
-      `"${formatDate(surat.tanggal_surat)}"`,
+      `"${surat.tanggal_surat}"`,
       `"${surat.status}"`
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -230,7 +290,7 @@ export default function DivisiSuratViewer() {
                     <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100 max-w-xs truncate" title={surat.perihal}>
                       {truncateText(surat.perihal, 20)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{formatDate(surat.tanggal_surat)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.tanggal_surat}</td>
                     <td className="px-6 py-4 text-sm">
                       {getStatusBadge(surat.status)}
                     </td>

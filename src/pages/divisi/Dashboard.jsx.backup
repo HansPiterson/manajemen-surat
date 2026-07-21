@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../lib/utils';
-import { api } from '../../lib/api';
+import { supabase } from '../../lib/supabase';
 import Skeleton from '../../components/ui/Skeleton';
 import { InformationCircleIcon, Cancel01Icon, PlusSignIcon } from 'hugeicons-react';
 
@@ -36,8 +35,11 @@ export default function DivisiDashboard() {
 
   const fetchDivisi = async () => {
     try {
-      const { data, error } = await api.getDivisi();
-      if (error) throw new Error(error);
+      const { data, error } = await supabase
+        .from('divisi')
+        .select('id, nama_divisi')
+        .eq('is_active', true);
+      if (error) throw error;
       setDivisiList(data || []);
     } catch (err) {
       console.error('Error fetching divisi:', err);
@@ -48,32 +50,110 @@ export default function DivisiDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const { data: profile, error: profileError } = await api.getProfile();
-      if (profileError) throw new Error(profileError);
+      // Fetch session to get user ID
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
 
-      const divisiId = profile?.divisi_id;
-      const divisiName = profile?.divisi?.nama_divisi || profile?.nama_divisi || '';
-      setNamaDivisi(divisiName);
-      setCurrentDivisiId(divisiId);
+      let userDivisiId = null;
 
-      const { data: suratData, error: suratError } = await api.getSurat(divisiId ? { divisi_id: divisiId } : {});
-      if (suratError) throw new Error(suratError);
+      if (session?.user) {
+        // Fetch division name for the title from profile first
+        const { data: userData } = await supabase
+          .from('users')
+          .select('divisi_id, divisi:divisi_id (nama_divisi)')
+          .eq('id', session.user.id)
+          .maybeSingle();
+          
+        let divisionName = userData?.divisi?.nama_divisi;
+        userDivisiId = userData?.divisi_id;
+        
+        // Fallback: Parse division code from email
+        if ((!divisionName || !userDivisiId) && session.user.email) {
+          const emailName = session.user.email.split('@')[0];
+          const kodeDivisiFromEmail = emailName.includes('_') ? emailName.split('_')[0] : emailName;
+          
+          if (kodeDivisiFromEmail) {
+            const { data: divisiData } = await supabase
+              .from('divisi')
+              .select('id, nama_divisi')
+              .ilike('kode_divisi', kodeDivisiFromEmail)
+              .maybeSingle();
+            
+            if (divisiData) {
+              if (!divisionName) divisionName = divisiData.nama_divisi;
+              if (!userDivisiId) userDivisiId = divisiData.id;
+            }
+          }
+        }
+        
+        if (divisionName) {
+          setNamaDivisi(divisionName);
+        }
 
-      const list = suratData || [];
-      setSuratList(list);
+        if (userDivisiId) {
+          setCurrentDivisiId(userDivisiId);
+        }
 
+        // Sync division to users table if missing but resolved via fallback
+        if (userDivisiId && !userData?.divisi_id) {
+          const { error: syncError } = await supabase
+            .from('users')
+            .update({ divisi_id: userDivisiId })
+            .eq('id', session.user.id);
+          if (syncError) {
+            console.warn('Gagal sinkronisasi divisi_id di Dashboard:', syncError.message);
+          }
+        }
+      }
+
+      // Fetch stats and recent letters
+      let statsQuery = supabase
+        .from('surat_ekspedisi')
+        .select(`
+          uuid, 
+          nomor_surat, 
+          perihal, 
+          tanggal_surat, 
+          status,
+          divisi_pengirim:divisi_pengirim_id (nama_divisi),
+          divisi_tujuan:divisi_tujuan_id (nama_divisi)
+        `)
+        .order('tanggal_surat', { ascending: false });
+      
+      if (userDivisiId) {
+        statsQuery = statsQuery.or(`divisi_pengirim_id.eq.${userDivisiId},divisi_tujuan_id.eq.${userDivisiId}`);
+      }
+      
+      const { data: allSurat, error: statsError } = await statsQuery;
+      
+      if (statsError) throw statsError;
+
+      setSuratList(allSurat || []);
+      
       const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const startOfWeek = new Date(startOfDay);
-      startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const firstDayOfWeek = new Date(today);
+      firstDayOfWeek.setDate(today.getDate() - today.getDay());
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      setStats({
-        total: list.length,
-        today: list.filter(s => new Date(s.tanggal_surat) >= startOfDay).length,
-        week: list.filter(s => new Date(s.tanggal_surat) >= startOfWeek).length,
-        month: list.filter(s => new Date(s.tanggal_surat) >= startOfMonth).length,
+      let todayCount = 0;
+      let weekCount = 0;
+      let monthCount = 0;
+
+      (allSurat || []).forEach(surat => {
+        const d = new Date(surat.tanggal_surat);
+        if (d >= today) todayCount++;
+        if (d >= firstDayOfWeek) weekCount++;
+        if (d >= firstDayOfMonth) monthCount++;
       });
+      
+      setStats({ 
+        today: todayCount,
+        week: weekCount,
+        month: monthCount,
+        total: allSurat?.length || 0
+      });
+
     } catch (err) {
       setError(err.message);
     } finally {
@@ -100,17 +180,19 @@ export default function DivisiDashboard() {
       const randomId = Math.floor(1000 + Math.random() * 9000);
       const nomor_surat = `EKS-${dateStr}-${randomId}`;
 
-      const { error: createError } = await api.createSurat({
-        nomor_surat,
-        perihal: formData.perihal,
-        tanggal_surat: new Date(),
-        status: 'draft',
-        divisi_pengirim_id: currentDivisiId,
-        divisi_tujuan_id: formData.divisi_tujuan_id,
-        nama_penerima: formData.nama_penerima || null
-      });
-
-      if (createError) throw new Error(createError);
+      const { error } = await supabase
+        .from('surat_ekspedisi')
+        .insert([{
+          nomor_surat,
+          perihal: formData.perihal,
+          tanggal_surat: new Date(),
+          status: 'draft',
+          divisi_pengirim_id: currentDivisiId,
+          divisi_tujuan_id: formData.divisi_tujuan_id,
+          nama_penerima: formData.nama_penerima || null
+        }]);
+      
+      if (error) throw error;
       
       setShowCreateModal(false);
       setFormData({ perihal: '', divisi_tujuan_id: '', nama_penerima: '' });

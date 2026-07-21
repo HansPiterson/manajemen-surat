@@ -3,14 +3,15 @@ import { Outlet, useNavigate } from '@tanstack/react-router';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import SearchModal from '../components/ui/SearchModal';
-import { DashboardSquare01Icon, Building04Icon, Mail01Icon, Settings02Icon, UserGroupIcon } from 'hugeicons-react';
+import { DashboardSquare01Icon, Building04Icon, Mail01Icon, Settings02Icon, UserGroupIcon, Analytics01Icon } from 'hugeicons-react';
 
 const adminNavigation = [
-  { name: 'Dashboard', href: '/admin/dashboard', icon: DashboardSquare01Icon },
-  { name: 'Manajemen Divisi', href: '/admin/divisi', icon: Building04Icon },
-  { name: 'Manajemen Kurir', href: '/admin/kurir', icon: UserGroupIcon },
-  { name: 'Surat Ekspedisi', href: '/admin/surat', icon: Mail01Icon },
-  { name: 'Settings', href: '/admin/settings', icon: Settings02Icon },
+  { label: "Dashboard", to: "/admin/dashboard", icon: DashboardSquare01Icon },
+  { label: "Manajemen Divisi", to: "/admin/divisi", icon: Building04Icon },
+  { label: "Manajemen Kurir", to: "/admin/kurir", icon: UserGroupIcon },
+  { label: "Surat Ekspedisi", to: "/admin/surat", icon: Mail01Icon },
+  { label: "Analitik", to: "/admin/analytics", icon: Analytics01Icon },
+  { label: "Settings", to: "/admin/settings", icon: Settings02Icon },
 ];
 
 export default function AdminLayout() {

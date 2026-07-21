@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { formatDate } from '../../lib/utils';
+import { api } from '../../lib/api';
 import Skeleton from '../../components/ui/Skeleton';
 import Select from '../../components/ui/Select';
-import { Link } from '@tanstack/react-router';
-import { Eye } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Eye, Truck, Building2 } from 'lucide-react';
 
 const truncateText = (text, maxLength = 12) => {
   if (!text) return '-';
@@ -11,8 +12,9 @@ const truncateText = (text, maxLength = 12) => {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, draft: 0, dikirim: 0, diterima: 0 });
+  const [stats, setStats] = useState({ total: 0, draft: 0, dikirim: 0, diterima: 0, kurir_aktif: 0, total_divisi: 0 });
   const [recentActivity, setRecentActivity] = useState([]);
   const [error, setError] = useState(null);
 
@@ -24,40 +26,10 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch Stats
-      // Instead of 3 separate count queries which can be slow, we'll fetch all statuses and count them in memory
-      // Note: for very large datasets, use separate count queries with { count: 'exact', head: true }
-      const { data: allSurat, error: statsError } = await supabase
-        .from('surat_ekspedisi')
-        .select('status');
-      
-      if (statsError) throw statsError;
-
-      const total = allSurat?.length || 0;
-      const draft = allSurat?.filter(s => s.status === 'draft').length || 0;
-      const dikirim = allSurat?.filter(s => s.status === 'dikirim').length || 0;
-      const diterima = allSurat?.filter(s => s.status === 'diterima').length || 0;
-
-      setStats({ total, draft, dikirim, diterima });
-
-      // 2. Fetch Recent Activity (Limit 5)
-      const { data: recent, error: recentError } = await supabase
-        .from('surat_ekspedisi')
-        .select(`
-          uuid, 
-          nomor_surat, 
-          perihal, 
-          tanggal_surat, 
-          status,
-          divisi_pengirim:divisi_pengirim_id (nama_divisi),
-          divisi_tujuan:divisi_tujuan_id (nama_divisi)
-        `)
-        .order('tanggal_surat', { ascending: false })
-        .limit(5);
-
-      if (recentError) throw recentError;
-      setRecentActivity(recent || []);
-
+      const { data, error: apiError } = await api.getDashboard();
+      if (apiError) throw new Error(apiError);
+      setStats(data.stats ?? { total: 0, draft: 0, dikirim: 0, diterima: 0, kurir_aktif: 0, total_divisi: 0 });
+      setRecentActivity(data.recentActivity ?? []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -65,134 +37,127 @@ export default function Dashboard() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
 
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Dashboard Overview</h1>
-        <p className="text-slate-600 dark:text-slate-400 mt-1">Ringkasan aktivitas surat ekspedisi digital hari ini.</p>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Dashboard</h1>
+        <p className="text-slate-600 dark:text-slate-400 mt-1">Ringkasan aktivitas surat ekspedisi</p>
       </div>
 
-      {error && (
-        <div className="mb-4 text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
-          {error}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Total Surat</div>
+          <div className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.total}</div>
         </div>
-      )}
-
-      {/* Stats Cards */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Draft</div>
+          <div className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.draft}</div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Surat Tercatat</h3>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.total}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Draft</h3>
-            <p className="text-3xl font-bold text-gray-500 dark:text-gray-400 mt-2">{stats.draft}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Sedang Dikirim</h3>
-            <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-2">{stats.dikirim}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Surat Sync</h3>
-            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">{stats.diterima}</p>
-          </div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Dikirim</div>
+          <div className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.dikirim}</div>
         </div>
-      )}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Diterima</div>
+          <div className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.diterima}</div>
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+          <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+            <Truck size={14} className="shrink-0" /> Kurir Aktif
+          </div>
+          <div className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.kurir_aktif}</div>
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+          <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+            <Building2 size={14} className="shrink-0" /> Total Divisi
+          </div>
+          <div className="text-3xl font-bold text-slate-900 dark:text-slate-50 mt-2">{stats.total_divisi}</div>
+        </div>
+      </div>
 
       {/* Recent Activity Table */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-4">Aktivitas Terbaru</h2>
-        {loading ? (
-          <div className="space-y-4 bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-sm border-b border-slate-200 dark:border-slate-700">
-                    <th className="px-6 py-4 font-medium whitespace-nowrap">Nomor Surat</th>
-                    <th className="px-6 py-4 font-medium">Pengirim</th>
-                    <th className="px-6 py-4 font-medium">Tujuan</th>
-                    <th className="px-6 py-4 font-medium">Perihal</th>
-                    <th className="px-6 py-4 font-medium whitespace-nowrap">Tanggal</th>
-                    <th className="px-6 py-4 font-medium w-48">Status</th>
-                    <th className="px-6 py-4 font-medium text-center">Aksi</th>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Aktivitas Terbaru</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50 dark:bg-slate-900/50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">No. Surat</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Perihal</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pengirim</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tujuan</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {recentActivity.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                    Belum ada aktivitas
+                  </td>
+                </tr>
+              ) : (
+                recentActivity.map((surat) => (
+                  <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                    <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{surat.nomor_surat}</td>
+                    <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{truncateText(surat.perihal, 30)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{surat.divisi_pengirim}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{surat.divisi_tujuan}</td>
+                    <td className="px-6 py-4">
+                      <Select
+                        value={surat.status}
+                        options={[
+                          { value: 'draft', label: 'Draft' },
+                          { value: 'dikirim', label: 'Dikirim' },
+                          { value: 'diterima', label: 'Diterima' },
+                        ]}
+                        onChange={() => {}}
+                        disabled
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => {
+                          sessionStorage.setItem('highlightSuratId', surat.uuid);
+                          navigate({ to: '/admin/surat' });
+                        }}
+                        className="text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
+                      >
+                        <Eye size={18} />
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {recentActivity.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                        Belum ada aktivitas yang tercatat.
-                      </td>
-                    </tr>
-                  ) : (
-                    recentActivity.map((surat) => {
-                      const isDiterima = String(surat.status || '').toLowerCase().trim() === 'diterima';
-                      return (
-                      <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" title={surat.nomor_surat}>
-                          {truncateText(surat.nomor_surat, 12)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_pengirim?.nama_divisi || '-'}>
-                          {truncateText(surat.divisi_pengirim?.nama_divisi || '-', 15)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_tujuan?.nama_divisi || '-'}>
-                          {truncateText(surat.divisi_tujuan?.nama_divisi || '-', 15)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100 max-w-xs truncate" title={surat.perihal}>
-                          {truncateText(surat.perihal, 20)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{surat.tanggal_surat}</td>
-                        <td className="px-6 py-4 text-sm whitespace-nowrap">
-                          {surat.status === 'draft' && (
-                            <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/10">
-                              Draft
-                            </span>
-                          )}
-                          {surat.status === 'dikirim' && (
-                            <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-                              Sedang Dikirim
-                            </span>
-                          )}
-                          {isDiterima && (
-                            <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-600/20">
-                              Sync (Diterima)
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-center">
-                          <Link 
-                            to="/admin/surat" 
-                            className="inline-flex items-center justify-center text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                            title="Buka Halaman Surat Ekspedisi"
-                          >
-                            <Eye size={18} />
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
