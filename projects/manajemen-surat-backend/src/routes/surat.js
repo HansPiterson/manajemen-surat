@@ -1,3 +1,5 @@
+import { broadcast } from '../sse.js';
+import { sendPushToKurir } from '../fcm.js';
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../db/pool.js';
@@ -235,7 +237,14 @@ router.post('/',
         [surat.divisi_pengirim_id, surat.divisi_tujuan_id]
       );
 
-      res.status(201).json({ ...surat, ...divisiResult.rows[0] });
+      const created = { ...surat, ...divisiResult.rows[0] };
+      broadcast('surat_created', created);
+      sendPushToKurir(
+        'Surat Baru Masuk! 📬',
+        `${created.nomor_surat} - ${created.perihal || 'Surat baru'}`,
+        { uuid: created.uuid, nomor_surat: created.nomor_surat }
+      ).catch(() => {});
+      res.status(201).json(created);
     } catch (error) {
       if (error.code === '23505') {
         return res.status(400).json({ error: 'Nomor surat already exists' });
@@ -316,6 +325,7 @@ router.put('/:id', authenticate, async (req, res) => {
       values
     );
 
+    broadcast('surat_updated', result.rows[0]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Update surat error:', error);
