@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 class ApiClient {
   constructor() {
@@ -58,22 +58,28 @@ class ApiClient {
 
       const data = await response.json();
 
-      if (!data.success) {
-        return { data: null, error: data.message || 'API Error' };
+      if (!response.ok) {
+        return { data: null, error: data.error || `HTTP ${response.status}` };
       }
 
-      return { data: data.data, error: null };
+      return { data, error: null };
     } catch (err) {
       return { data: null, error: err.message || 'Network Error' };
     }
   }
 
   // Auth
-  async login(email, password) {
+  async login(email, password, kode_divisi) {
+    const body = { email, password };
+    if (kode_divisi) {
+      body.kode_divisi = kode_divisi;
+    }
+
     const res = await this.request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
     });
+    
     if (res.data) {
       this.setToken(res.data.token);
       this.setUser(res.data.user);
@@ -81,20 +87,27 @@ class ApiClient {
     return res;
   }
 
-  async register(email, password, nama_lengkap, divisi_id) {
+  async register(email, password, nama_lengkap) {
     const res = await this.request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, nama_lengkap, divisi_id }),
+      body: JSON.stringify({ email, password, nama_lengkap }),
     });
-    if (res.data) {
-      this.setToken(res.data.token);
-      this.setUser(res.data.user);
+    if (res.data && res.data.user) {
+      if (res.data.token) {
+        this.setToken(res.data.token);
+        this.setUser(res.data.user);
+      }
     }
     return res;
   }
 
   async getProfile() {
-    return this.request('/auth/profile');
+    const res = await this.request('/auth/me');
+    if (res.data && res.data.user) {
+      this.setUser(res.data.user);
+      return { data: res.data.user, error: null };
+    }
+    return res;
   }
 
   // Divisi
@@ -128,8 +141,16 @@ class ApiClient {
     return this.request(`/surat?${params}`);
   }
 
+  async getSuratById(id) {
+    return this.request(`/surat/${id}`);
+  }
+
   async getSuratByUuid(uuid) {
-    return this.request(`/surat/${uuid}`);
+    return this.getSuratById(uuid);
+  }
+
+  async getSuratByNomor(nomorSurat) {
+    return this.request(`/surat/nomor/${encodeURIComponent(nomorSurat)}`);
   }
 
   async createSurat(data) {
@@ -139,58 +160,66 @@ class ApiClient {
     });
   }
 
-  async updateSurat(uuid, data) {
-    return this.request(`/surat/${uuid}`, {
+  async updateSurat(id, data) {
+    return this.request(`/surat/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
-  async updateStatusSurat(uuid, status) {
-    return this.request(`/surat/${uuid}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
+  async updateStatusSurat(id, status) {
+    return this.updateSurat(id, { status });
+  }
+
+  async deleteSurat(id) {
+    return this.request(`/surat/${id}`, {
+      method: 'DELETE',
     });
   }
 
-  async syncSurat(uuid) {
-    return this.request(`/surat/${uuid}/sync`, {
-      method: 'POST',
+  async getDashboard() {
+    return this.request('/surat/stats/summary');
+  }
+
+  async getKurir() {
+    return this.request('/users');
+  }
+
+  async approveKurir(id) {
+    return this.request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'approved' }),
     });
   }
 
-  async uploadPhotoSurat(uuid, data) {
-    return this.request(`/surat/${uuid}/photo`, {
+  async deactivateKurir(id) {
+    return this.request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'nonaktif' }),
+    });
+  }
+
+  async getPendingKurir() {
+    return this.request('/users/pending-kurir');
+  }
+
+  async createUser(data) {
+    return this.request('/users', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async deleteSurat(uuid) {
-    return this.request(`/surat/${uuid}`, {
+  async updateUser(id, data) {
+    return this.request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUser(id) {
+    return this.request(`/users/${id}`, {
       method: 'DELETE',
-    });
-  }
-
-  // Dashboard
-  async getDashboard() {
-    return this.request('/dashboard');
-  }
-
-  // Kurir
-  async getKurir() {
-    return this.request('/kurir');
-  }
-
-  async approveKurir(id) {
-    return this.request(`/kurir/${id}/approve`, {
-      method: 'PATCH',
-    });
-  }
-
-  async deactivateKurir(id) {
-    return this.request(`/kurir/${id}/deactivate`, {
-      method: 'PATCH',
     });
   }
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { formatDate } from '../../lib/utils';
 import { api } from '../../lib/api';
 import Skeleton from '../../components/ui/Skeleton';
@@ -10,16 +11,12 @@ import {
   Pencil, 
   Trash2, 
   X, 
-  Check, 
   FileText, 
-  Image as ImageIcon, 
-  MapPin, 
-  ShieldCheck,
+  Image as ImageIcon,
   Calendar,
   User,
   Building,
   Plus,
-  Copy,
   Filter
 } from 'lucide-react';
 
@@ -39,6 +36,7 @@ export default function SuratViewer() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [highlightId, setHighlightId] = useState(null);
   const [divisiList, setDivisiList] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleHighlight = (e) => {
@@ -56,10 +54,8 @@ export default function SuratViewer() {
   }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
   
   // Modals state
-  const [selectedSurat, setSelectedSurat] = useState(null); // For Details Popup
   const [editingSurat, setEditingSurat] = useState(null);   // For Edit Modal
   const [showCreateModal, setShowCreateModal] = useState(false); // For Create Modal
   const [deleteTarget, setDeleteTarget] = useState(null);   // For Custom Confirmation Dialog
@@ -76,15 +72,7 @@ export default function SuratViewer() {
     status: 'draft'
   });
 
-  useEffect(() => {
-    setCopied(false);
-  }, [selectedSurat]);
 
-  const handleCopy = (text) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   useEffect(() => {
     fetchSurat();
@@ -256,7 +244,7 @@ export default function SuratViewer() {
   // Map divisions to options for Select component
   const divisiOptions = divisiList.map(div => ({
     value: div.id,
-    label: div.nama_divisi
+    label: div.nama
   }));
 
   const statusOptions = [
@@ -278,7 +266,7 @@ export default function SuratViewer() {
     }
 
     result.sort((a, b) => {
-      const diff = new Date(b.tanggal_surat) - new Date(a.tanggal_surat);
+      const diff = new Date(b.tanggal_surat || b.created_at) - new Date(a.tanggal_surat || a.created_at);
       return filters.tanggal === 'terbaru' ? diff : -diff;
     });
 
@@ -370,16 +358,16 @@ export default function SuratViewer() {
                     <td className={`px-6 py-4 text-sm font-medium transition-colors duration-1000 ${isHighlight ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`} title={surat.nomor_surat}>
                       {truncateText(surat.nomor_surat, 12)}
                     </td>
-                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.divisi_pengirim_nama || '-'}>
-                      {truncateText(surat.divisi_pengirim_nama || '-', 15)}
+                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.pengirim_nama || '-'}>
+                      {truncateText(surat.pengirim_nama || '-', 15)}
                     </td>
-                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.divisi_tujuan_nama || '-'}>
-                      {truncateText(surat.divisi_tujuan_nama || '-', 15)}
+                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`} title={surat.tujuan_nama || '-'}>
+                      {truncateText(surat.tujuan_nama || '-', 15)}
                     </td>
                     <td className={`px-6 py-4 text-sm max-w-xs truncate transition-colors duration-1000 ${isHighlight ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`} title={surat.perihal}>
                       {truncateText(surat.perihal, 20)}
                     </td>
-                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`}>{formatDate(surat.tanggal_surat)}</td>
+                    <td className={`px-6 py-4 text-sm transition-colors duration-1000 ${isHighlight ? 'text-blue-100' : 'text-slate-600 dark:text-slate-300'}`}>{formatDate(surat.tanggal_surat || surat.created_at)}</td>
                     <td className="px-6 py-4 text-sm whitespace-nowrap">
                       {surat.status === 'draft' && (
                         <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/10">
@@ -401,7 +389,7 @@ export default function SuratViewer() {
                       <div className="flex items-center justify-center gap-1.5">
                         {/* Preview / Detail Icon */}
                         <button 
-                          onClick={() => setSelectedSurat(surat)}
+                          onClick={() => navigate({ to: `/admin/surat/${surat.nomor_surat}` })}
                           className="text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                           title="Preview Detail Surat"
                         >
@@ -438,351 +426,6 @@ export default function SuratViewer() {
         </div>
       </div>
 
-      {/* Detail & Preview Modal */}
-      {selectedSurat && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] animate-scale-up">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                <FileText size={20} className="text-slate-500" />
-                Detail Surat Ekspedisi
-              </h3>
-              <button 
-                onClick={() => setSelectedSurat(null)}
-                className="text-slate-505 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-5">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Nomor Surat</p>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{selectedSurat.nomor_surat}</p>
-                    <button
-                      onClick={() => handleCopy(selectedSurat.nomor_surat)}
-                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
-                      title="Salin Nomor Surat"
-                    >
-                      {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Tanggal Pembuatan</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    <Calendar size={14} className="text-slate-400" />
-                    {formatDate(selectedSurat.tanggal_surat)}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Divisi Pengirim</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    <Building size={14} className="text-slate-400" />
-                    {selectedSurat.divisi_pengirim_nama || '-'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Divisi Tujuan</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    <Building size={14} className="text-slate-400" />
-                    {selectedSurat.divisi_tujuan_nama || '-'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Nama Penerima / Kurir</p>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    <User size={14} className="text-slate-400" />
-                    {selectedSurat.nama_penerima || '-'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Status Surat</p>
-                  <div>
-                    {selectedSurat.status === 'draft' && <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-500/10">Draft</span>}
-                    {selectedSurat.status === 'dikirim' && <span className="inline-flex items-center rounded-md bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-800 ring-1 ring-inset ring-yellow-600/20">Sedang Dikirim</span>}
-                    {selectedSurat.status === 'diterima' && <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-600/20">Sync (Diterima)</span>}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Perihal</p>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-relaxed">{selectedSurat.perihal}</p>
-              </div>
-
-              {/* Photo Proof Section (If Available) */}
-              {selectedSurat.foto_bukti_url ? (
-                <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">Bukti Pengiriman Fisik</h4>
-                  
-                  <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/10 border border-green-200 dark:border-green-900/40 rounded-lg">
-                    <ShieldCheck className="text-green-600 dark:text-green-400" size={20} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-green-800 dark:text-green-400">Hash Anti-Tampering Valid</p>
-                      <p className="text-[10px] text-green-700 dark:text-green-500 font-mono truncate">{selectedSurat.foto_hash}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden aspect-[4/3] flex items-center justify-center">
-                      <img 
-                        src={selectedSurat.foto_bukti_url} 
-                        alt="Bukti Pengiriman" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=800&q=80";
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-3 flex flex-col justify-center bg-slate-50 dark:bg-slate-850 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
-                      <div className="flex items-start gap-2">
-                        <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Geotagging Lokasi</p>
-                          {selectedSurat.foto_latitude && selectedSurat.foto_longitude ? (
-                            <a 
-                              href={`https://www.google.com/maps?q=${selectedSurat.foto_latitude},${selectedSurat.foto_longitude}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 mt-0.5"
-                            >
-                              Buka di Google Maps ↗
-                            </a>
-                          ) : (
-                            <p className="text-xs font-mono text-slate-800 dark:text-slate-200">
-                              Belum ada data GPS
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Calendar size={16} className="text-slate-400 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Waktu Pengambilan</p>
-                          <p className="text-xs text-slate-800 dark:text-slate-200">
-                            {new Date(selectedSurat.tanggal_surat).toLocaleString('id-ID')}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-center py-4 bg-slate-50 dark:bg-slate-800/20 rounded-lg">
-                  <ImageIcon size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-1" />
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Belum ada bukti foto yang di-upload dari aplikasi kurir.</p>
-                </div>
-              )}
-
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Surat Modal */}
-      {editingSurat && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] animate-scale-up">
-            
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Edit Detail Surat</h3>
-              <button 
-                onClick={() => setEditingSurat(null)}
-                className="text-slate-550 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <form onSubmit={handleEditSubmit} className="p-6 overflow-y-auto space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Perihal Surat *</label>
-                <input
-                  type="text"
-                  name="perihal"
-                  value={formData.perihal}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-650 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Divisi Pengirim *</label>
-                  <Select
-                    value={formData.divisi_pengirim_id}
-                    onChange={(e) => handleSelectChange('divisi_pengirim_id', e.target.value)}
-                    options={divisiOptions}
-                    placeholder="Pilih divisi pengirim"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Divisi Tujuan *</label>
-                  <Select
-                    value={formData.divisi_tujuan_id}
-                    onChange={(e) => handleSelectChange('divisi_tujuan_id', e.target.value)}
-                    options={divisiOptions}
-                    placeholder="Pilih divisi tujuan"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Nama Penerima / Kurir</label>
-                  <input
-                    type="text"
-                    name="nama_penerima"
-                    value={formData.nama_penerima}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-650 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    placeholder="Nama Penerima"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Status Surat *</label>
-                  <Select
-                    value={formData.status}
-                    onChange={(e) => handleSelectChange('status', e.target.value)}
-                    options={statusOptions}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingSurat(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition-colors disabled:opacity-50"
-                >
-                  {formLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Create Surat Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] animate-scale-up">
-            
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Buat Surat Ekspedisi Baru</h3>
-              <button 
-                onClick={() => setShowCreateModal(false)}
-                className="text-slate-550 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="p-6 overflow-y-auto space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Perihal Surat *</label>
-                <input
-                  type="text"
-                  name="perihal"
-                  value={formData.perihal}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-650 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  placeholder="Misal: Pengiriman Dokumen Kontrak"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Divisi Pengirim *</label>
-                  <Select
-                    value={formData.divisi_pengirim_id}
-                    onChange={(e) => handleSelectChange('divisi_pengirim_id', e.target.value)}
-                    options={divisiOptions}
-                    placeholder="Pilih divisi pengirim"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Divisi Tujuan *</label>
-                  <Select
-                    value={formData.divisi_tujuan_id}
-                    onChange={(e) => handleSelectChange('divisi_tujuan_id', e.target.value)}
-                    options={divisiOptions}
-                    placeholder="Pilih divisi tujuan"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Nama Penerima</label>
-                  <input
-                    type="text"
-                    name="nama_penerima"
-                    value={formData.nama_penerima}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-650 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    placeholder="Biasanya diisi kurir"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Status Awal *</label>
-                  <Select
-                    value={formData.status}
-                    onChange={(e) => handleSelectChange('status', e.target.value)}
-                    options={statusOptions}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 rounded-lg font-semibold text-xs transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition-colors disabled:opacity-50"
-                >
-                  {formLoading ? 'Menyimpan...' : 'Simpan Draft'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Reusable Custom Confirmation Dialog */}
-      <Dialog
-        isOpen={!!deleteTarget}
-        title="Hapus Surat Ekspedisi"
-        message={`Apakah Anda yakin ingin menghapus surat dengan nomor: ${deleteTarget?.nomor_surat}? Tindakan ini tidak dapat dibatalkan.`}
-        type="alert"
-        confirmText="Hapus"
-        cancelText="Batal"
-        onConfirm={handleDeleteConfirm}
-        onClose={() => setDeleteTarget(null)}
-      />
       {/* Sync Confirmation Dialog */}
       <Dialog
         isOpen={!!syncTarget}

@@ -17,6 +17,7 @@ import AdminDashboard from './pages/admin/Dashboard';
 import DivisiManagement from './pages/admin/DivisiManagement';
 import KurirManagement from './pages/admin/KurirManagement';
 import AdminSuratViewer from './pages/admin/SuratViewer';
+import AdminSuratDetail from './pages/admin/SuratDetail';
 import Settings from './pages/admin/Settings';
 import Analytics from './pages/admin/Analytics';
 
@@ -24,6 +25,7 @@ import Analytics from './pages/admin/Analytics';
 import DivisiLayout from './layouts/DivisiLayout';
 import DivisiDashboard from './pages/divisi/Dashboard';
 import DivisiSuratViewer from './pages/divisi/SuratViewer';
+import DivisiSuratDetail from './pages/divisi/SuratDetail';
 
 // Create a root route
 const rootRoute = createRootRoute({
@@ -74,6 +76,12 @@ const adminSuratRoute = createRoute({
   component: AdminSuratViewer,
 });
 
+const adminSuratDetailRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/surat/$nomorSurat',
+  component: AdminSuratDetail,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: '/settings',
@@ -111,6 +119,12 @@ const divisiSuratRoute = createRoute({
   component: DivisiSuratViewer,
 });
 
+const divisiSuratDetailRoute = createRoute({
+  getParentRoute: () => divisiRoute,
+  path: '/surat/$nomorSurat',
+  component: DivisiSuratDetail,
+});
+
 const divisiSettingsRoute = createRoute({
   getParentRoute: () => divisiRoute,
   path: '/settings',
@@ -125,7 +139,8 @@ const routeTree = rootRoute.addChildren([
       adminDashboardRoute, 
       divisiManagementRoute, 
       kurirManagementRoute,
-      adminSuratRoute, 
+      adminSuratRoute,
+      adminSuratDetailRoute,
       settingsRoute,
       analyticsRoute
     ])
@@ -134,6 +149,7 @@ const routeTree = rootRoute.addChildren([
     divisiRoute.addChildren([
       divisiDashboardRoute,
       divisiSuratRoute,
+      divisiSuratDetailRoute,
       divisiSettingsRoute
     ])
   ])
