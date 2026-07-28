@@ -4,13 +4,15 @@ import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import SearchModal from '../components/ui/SearchModal';
 import { DashboardSquare01Icon, Building04Icon, Mail01Icon, Settings02Icon, UserGroupIcon, Analytics01Icon } from 'hugeicons-react';
+import { BookOpen } from 'lucide-react';
 
 const adminNavigation = [
   { label: "Dashboard", to: "/admin/dashboard", icon: DashboardSquare01Icon },
   { label: "Manajemen Divisi", to: "/admin/divisi", icon: Building04Icon },
-  { label: "Manajemen Kurir", to: "/admin/kurir", icon: UserGroupIcon },
+  { label: "Manajemen Pengguna", to: "/admin/kurir", icon: UserGroupIcon },
   { label: "Surat Ekspedisi", to: "/admin/surat", icon: Mail01Icon },
   { label: "Analitik", to: "/admin/analytics", icon: Analytics01Icon },
+  { label: "Panduan Pengguna", to: "/admin/panduan", icon: BookOpen },
   { label: "Settings", to: "/admin/settings", icon: Settings02Icon },
 ];
 

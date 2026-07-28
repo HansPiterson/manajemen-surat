@@ -89,20 +89,20 @@ export default function Analytics() {
     if (period === 'all') return suratList;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - Number(period));
-    return suratList.filter(s => new Date(s.tanggal_surat) >= cutoff);
+    return suratList.filter(s => new Date(s.tanggal_surat || s.created_at) >= cutoff);
   }, [suratList, period]);
 
   const divisiMap = useMemo(() => {
     const map = {};
-    divisiList.forEach(d => { map[d.id] = d.nama_divisi; });
+    divisiList.forEach(d => { map[d.id] = d.nama; });
     return map;
   }, [divisiList]);
 
   const divisiFlowData = useMemo(() => {
     const flow = {};
     filtered.forEach(s => {
-      const pengirim = s.divisi_pengirim?.nama_divisi || divisiMap[s.divisi_pengirim_id] || 'Unknown';
-      const tujuan   = s.divisi_tujuan?.nama_divisi   || divisiMap[s.divisi_tujuan_id]   || 'Unknown';
+      const pengirim = s.pengirim_nama || divisiMap[s.divisi_pengirim_id] || 'Unknown';
+      const tujuan   = s.tujuan_nama   || divisiMap[s.divisi_tujuan_id]   || 'Unknown';
       if (!flow[pengirim]) flow[pengirim] = { divisi: pengirim, keluar: 0, masuk: 0 };
       if (!flow[tujuan])   flow[tujuan]   = { divisi: tujuan,   keluar: 0, masuk: 0 };
       flow[pengirim].keluar += 1;
@@ -131,7 +131,7 @@ export default function Analytics() {
       return { key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTH_NAMES[d.getMonth()], total: 0, diterima: 0 };
     });
     suratList.forEach(s => {
-      const d   = new Date(s.tanggal_surat);
+      const d   = new Date(s.tanggal_surat || s.created_at);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       const entry = months.find(m => m.key === key);
       if (entry) {

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSSE } from '../../hooks/useSSE';
 import { useNavigate } from '@tanstack/react-router';
 import { formatDate } from '../../lib/utils';
 import { api } from '../../lib/api';
@@ -37,6 +38,14 @@ export default function SuratViewer() {
   const [highlightId, setHighlightId] = useState(null);
   const [divisiList, setDivisiList] = useState([]);
   const navigate = useNavigate();
+
+  const handleSSEEvent = useCallback((event, data) => {
+    if (event === 'surat_created' || event === 'surat_updated') {
+      fetchSurat();
+    }
+  }, []);
+  useSSE(handleSSEEvent);
+
 
   useEffect(() => {
     const handleHighlight = (e) => {
@@ -120,10 +129,20 @@ export default function SuratViewer() {
       const randomId = Math.floor(1000 + Math.random() * 9000);
       const nomor_surat = `EKS-${dateStr}-${randomId}`;
 
+      if (!formData.divisi_pengirim_id) {
+        setError('Divisi pengirim wajib dipilih');
+        setFormLoading(false);
+        return;
+      }
+      if (!formData.divisi_tujuan_id) {
+        setError('Divisi tujuan wajib dipilih');
+        setFormLoading(false);
+        return;
+      }
       const { error: createError } = await api.createSurat({
         nomor_surat,
         perihal: formData.perihal,
-        tanggal_surat: new Date(),
+        tanggal_surat: new Date().toISOString(),
         status: formData.status,
         divisi_pengirim_id: formData.divisi_pengirim_id,
         divisi_tujuan_id: formData.divisi_tujuan_id,
@@ -184,8 +203,8 @@ export default function SuratViewer() {
   const executeEditSubmit = async () => {
     const { error: editError } = await api.updateSurat(editingSurat.uuid, {
       perihal: formData.perihal,
-      divisi_pengirim_id: formData.divisi_pengirim_id,
-      divisi_tujuan_id: formData.divisi_tujuan_id,
+      divisi_pengirim_id: formData.divisi_pengirim_id || null,
+      divisi_tujuan_id: formData.divisi_tujuan_id || null,
       nama_penerima: formData.nama_penerima || null,
       status: formData.status
     });
@@ -425,6 +444,58 @@ export default function SuratViewer() {
           </table>
         </div>
       </div>
+
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Buat Surat Baru</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Perihal</label><textarea name="perihal" value={formData.perihal} onChange={e => setFormData({...formData, perihal: e.target.value})} rows={3} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" required /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Pengirim</label><Select options={divisiOptions} value={formData.divisi_pengirim_id} onChange={e => setFormData({...formData, divisi_pengirim_id: e.target.value})} placeholder="Pilih divisi pengirim" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Tujuan</label><Select options={divisiOptions} value={formData.divisi_tujuan_id} onChange={e => setFormData({...formData, divisi_tujuan_id: e.target.value})} placeholder="Pilih divisi tujuan" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Penerima (Opsional)</label><input type="text" name="nama_penerima" value={formData.nama_penerima} onChange={e => setFormData({...formData, nama_penerima: e.target.value})} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" /></div>
+              <div className="flex gap-3 pt-4"><button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">Batal</button><button type="submit" disabled={formLoading} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50">{formLoading ? 'Menyimpan...' : 'Simpan'}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingSurat && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Edit Surat</h3>
+              <button onClick={() => setEditingSurat(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Perihal</label><textarea name="perihal" value={formData.perihal} onChange={e => setFormData({...formData, perihal: e.target.value})} rows={3} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" required /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Pengirim</label><Select options={divisiOptions} value={formData.divisi_pengirim_id} onChange={e => setFormData({...formData, divisi_pengirim_id: e.target.value})} placeholder="Pilih divisi pengirim" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Tujuan</label><Select options={divisiOptions} value={formData.divisi_tujuan_id} onChange={e => setFormData({...formData, divisi_tujuan_id: e.target.value})} placeholder="Pilih divisi tujuan" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Penerima</label><input type="text" name="nama_penerima" value={formData.nama_penerima} onChange={e => setFormData({...formData, nama_penerima: e.target.value})} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label><Select options={[{value:'draft',label:'Draft'},{value:'dikirim',label:'Sedang Dikirim'}]} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} placeholder="Pilih status" /></div>
+              <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingSurat(null)} className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">Batal</button><button type="submit" disabled={formLoading} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50">{formLoading ? 'Menyimpan...' : 'Simpan'}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        isOpen={!!deleteTarget}
+        title="Hapus Surat Ekspedisi"
+        message={`Apakah Anda yakin ingin menghapus surat dengan nomor: ${deleteTarget?.nomor_surat}? Tindakan ini tidak dapat dibatalkan.`}
+        type="alert"
+        confirmText="Hapus"
+        cancelText="Batal"
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setDeleteTarget(null)}
+      />
 
       {/* Sync Confirmation Dialog */}
       <Dialog

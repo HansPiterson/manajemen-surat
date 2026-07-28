@@ -1,3 +1,4 @@
+import { useSSE } from '../../hooks/useSSE';
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../../lib/utils';
 import { api } from '../../lib/api';
@@ -10,6 +11,13 @@ const truncateText = (text, maxLength = 12) => {
 };
 
 export default function DivisiSuratViewer() {
+  const handleSSEEvent = (event) => {
+    if (event === 'surat_created' || event === 'surat_updated') {
+      fetchSurat();
+    }
+  };
+  useSSE(handleSSEEvent);
+
   const [suratList, setSuratList] = useState([]);
   const [divisiList, setDivisiList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +59,8 @@ export default function DivisiSuratViewer() {
 
   const fetchDivisi = async () => {
     try {
-      const data = await api.getDivisi();
+      const { data, error } = await api.getDivisi();
+      if (error) throw new Error(error);
       setDivisiList(data || []);
     } catch (err) {
       console.error('Error fetching divisi:', err);
@@ -117,10 +126,10 @@ export default function DivisiSuratViewer() {
     const headers = ['Nomor Surat', 'Pengirim', 'Tujuan', 'Perihal', 'Tanggal', 'Status'];
     const rows = suratList.map(surat => [
       `"${surat.nomor_surat}"`,
-      `"${surat.divisi_pengirim?.nama_divisi || ''}"`,
-      `"${surat.divisi_tujuan?.nama_divisi || ''}"`,
+      `"${surat.pengirim_nama || ''}"`,
+      `"${surat.tujuan_nama || ''}"`,
       `"${surat.perihal}"`,
-      `"${formatDate(surat.tanggal_surat)}"`,
+      `"${formatDate(surat.tanggal_surat || surat.created_at)}"`,
       `"${surat.status}"`
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -221,16 +230,16 @@ export default function DivisiSuratViewer() {
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" title={surat.nomor_surat}>
                       {truncateText(surat.nomor_surat, 12)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_pengirim?.nama_divisi || '-'}>
-                      {truncateText(surat.divisi_pengirim?.nama_divisi || '-', 15)}
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.pengirim_nama || '-'}>
+                      {truncateText(surat.pengirim_nama || '-', 15)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_tujuan?.nama_divisi || '-'}>
-                      {truncateText(surat.divisi_tujuan?.nama_divisi || '-', 15)}
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.tujuan_nama || '-'}>
+                      {truncateText(surat.tujuan_nama || '-', 15)}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100 max-w-xs truncate" title={surat.perihal}>
                       {truncateText(surat.perihal, 20)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{formatDate(surat.tanggal_surat)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">{formatDate(surat.tanggal_surat || surat.created_at)}</td>
                     <td className="px-6 py-4 text-sm">
                       {getStatusBadge(surat.status)}
                     </td>
@@ -280,7 +289,7 @@ export default function DivisiSuratViewer() {
                 >
                   <option value="">-- Pilih Divisi --</option>
                   {divisiList.map(div => (
-                    <option key={div.id} value={div.id}>{div.nama_divisi}</option>
+                    <option key={div.id} value={div.id}>{div.nama}</option>
                   ))}
                 </select>
               </div>

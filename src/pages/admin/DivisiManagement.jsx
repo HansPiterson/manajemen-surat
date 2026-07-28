@@ -11,7 +11,7 @@ export default function DivisiManagement() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
-  const [formData, setFormData] = useState({ kode_divisi: '', nama_divisi: '' });
+  const [formData, setFormData] = useState({ kode: '', nama: '' });
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   useEffect(() => {
@@ -23,7 +23,9 @@ export default function DivisiManagement() {
     try {
       const { data, error } = await api.getDivisi();
       if (error) throw new Error(error);
-      setDivisiList(data ?? []);
+      // Filter out any undefined/invalid entries
+      const validDivisi = (data ?? []).filter(d => d.nama && d.kode);
+      setDivisiList(validDivisi);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -45,7 +47,7 @@ export default function DivisiManagement() {
         if (error) throw new Error(error);
       }
       
-      setFormData({ kode_divisi: '', nama_divisi: '' });
+      setFormData({ kode: '', nama: '' });
       setIsEditing(false);
       setCurrentId(null);
       fetchDivisi();
@@ -60,8 +62,8 @@ export default function DivisiManagement() {
     setIsEditing(true);
     setCurrentId(divisi.id);
     setFormData({
-      kode_divisi: divisi.kode_divisi,
-      nama_divisi: divisi.nama_divisi,
+      kode: divisi.kode,
+      nama: divisi.nama,
     });
   };
 
@@ -116,9 +118,10 @@ export default function DivisiManagement() {
             </label>
             <input
               type="text"
-              value={formData.kode_divisi}
-              onChange={(e) => setFormData({ ...formData, kode_divisi: e.target.value })}
-              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50"
+              value={formData.kode}
+              onChange={(e) => setFormData({ ...formData, kode: e.target.value.toUpperCase() })}
+              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 uppercase"
+              placeholder="KEU, SDM, IT, OPS"
               required
             />
           </div>
@@ -128,9 +131,10 @@ export default function DivisiManagement() {
             </label>
             <input
               type="text"
-              value={formData.nama_divisi}
-              onChange={(e) => setFormData({ ...formData, nama_divisi: e.target.value })}
+              value={formData.nama}
+              onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
               className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50"
+              placeholder="Divisi Keuangan"
               required
             />
           </div>
@@ -148,7 +152,7 @@ export default function DivisiManagement() {
                 onClick={() => {
                   setIsEditing(false);
                   setCurrentId(null);
-                  setFormData({ kode_divisi: '', nama_divisi: '' });
+                  setFormData({ kode: '', nama: '' });
                 }}
                 className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
               >
@@ -175,8 +179,8 @@ export default function DivisiManagement() {
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {divisiList.map((divisi) => (
                 <tr key={divisi.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                  <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{divisi.kode_divisi}</td>
-                  <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{divisi.nama_divisi}</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{divisi.kode}</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{divisi.nama}</td>
                   <td className="px-6 py-4 text-sm">
                     <button
                       onClick={() => handleEdit(divisi)}
@@ -201,7 +205,7 @@ export default function DivisiManagement() {
       <Dialog
         isOpen={!!deleteTarget}
         title="Hapus Divisi"
-        message={`Apakah Anda yakin ingin menghapus divisi "${deleteTarget?.nama_divisi}"? Tindakan ini akan menghapus divisi secara permanen dari database.`}
+        message={`Apakah Anda yakin ingin menghapus divisi "${deleteTarget?.nama}"? Tindakan ini akan menghapus divisi secara permanen dari database.`}
         type="alert"
         confirmText="Hapus"
         cancelText="Batal"

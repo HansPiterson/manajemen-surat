@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSSE } from '../../hooks/useSSE';
 import { formatDate } from '../../lib/utils';
 import { api } from '../../lib/api';
 import Skeleton from '../../components/ui/Skeleton';
@@ -10,6 +11,12 @@ const truncateText = (text, maxLength = 12) => {
 };
 
 export default function DivisiDashboard() {
+  useSSE((event) => {
+    if (event === 'surat_created' || event === 'surat_updated') {
+      fetchDashboardData();
+    }
+  });
+
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ today: 0, week: 0, month: 0, total: 0 });
   const [namaDivisi, setNamaDivisi] = useState('');
@@ -38,9 +45,10 @@ export default function DivisiDashboard() {
     try {
       const { data, error } = await api.getDivisi();
       if (error) throw new Error(error);
+      console.log('📋 Divisi list fetched:', data);
       setDivisiList(data || []);
     } catch (err) {
-      console.error('Error fetching divisi:', err);
+      console.error('❌ Error fetching divisi:', err);
     }
   };
 
@@ -52,11 +60,11 @@ export default function DivisiDashboard() {
       if (profileError) throw new Error(profileError);
 
       const divisiId = profile?.divisi_id;
-      const divisiName = profile?.divisi?.nama_divisi || profile?.nama_divisi || '';
+      const divisiName = profile?.divisi?.nama || profile?.divisi?.nama_divisi || profile?.nama_divisi || profile?.nama || '';
       setNamaDivisi(divisiName);
       setCurrentDivisiId(divisiId);
 
-      const { data: suratData, error: suratError } = await api.getSurat(divisiId ? { divisi_id: divisiId } : {});
+      const { data: suratData, error: suratError } = await api.getSurat({});
       if (suratError) throw new Error(suratError);
 
       const list = suratData || [];
@@ -70,9 +78,9 @@ export default function DivisiDashboard() {
 
       setStats({
         total: list.length,
-        today: list.filter(s => new Date(s.tanggal_surat) >= startOfDay).length,
-        week: list.filter(s => new Date(s.tanggal_surat) >= startOfWeek).length,
-        month: list.filter(s => new Date(s.tanggal_surat) >= startOfMonth).length,
+        today: list.filter(s => new Date(s.tanggal_surat || s.created_at) >= startOfDay).length,
+        week: list.filter(s => new Date(s.tanggal_surat || s.created_at) >= startOfWeek).length,
+        month: list.filter(s => new Date(s.tanggal_surat || s.created_at) >= startOfMonth).length,
       });
     } catch (err) {
       setError(err.message);
@@ -147,7 +155,11 @@ export default function DivisiDashboard() {
         </div>
         <div>
           <button 
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              console.log('🔵 Opening modal, current divisiList:', divisiList);
+              fetchDivisi(); // Force reload divisi when modal opens
+              setShowCreateModal(true);
+            }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer"
           >
             <PlusSignIcon size={18} />
@@ -226,17 +238,17 @@ export default function DivisiDashboard() {
                       <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100" title={surat.nomor_surat}>
                         {truncateText(surat.nomor_surat, 12)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_pengirim?.nama_divisi || '-'}>
-                        {truncateText(surat.divisi_pengirim?.nama_divisi || '-', 15)}
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.pengirim_nama || '-'}>
+                        {truncateText(surat.pengirim_nama || '-', 15)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.divisi_tujuan?.nama_divisi || '-'}>
-                        {truncateText(surat.divisi_tujuan?.nama_divisi || '-', 15)}
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" title={surat.tujuan_nama || '-'}>
+                        {truncateText(surat.tujuan_nama || '-', 15)}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-100 max-w-xs truncate" title={surat.perihal}>
                         {truncateText(surat.perihal, 20)}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
-                        {surat.tanggal_surat ? new Date(surat.tanggal_surat).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                        {new Date(surat.tanggal_surat || surat.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {getStatusBadge(surat.status)}
@@ -285,13 +297,15 @@ export default function DivisiDashboard() {
                   value={formData.divisi_tujuan_id}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{ colorScheme: 'light dark' }}
                 >
-                  <option value="">-- Pilih Divisi --</option>
+                  <option value="" style={{ backgroundColor: 'white', color: 'black' }}>-- Pilih Divisi --</option>
                   {divisiList.map(div => (
-                    <option key={div.id} value={div.id}>{div.nama_divisi}</option>
+                    <option key={div.id} value={div.id} style={{ backgroundColor: 'white', color: 'black' }}>{div.nama}</option>
                   ))}
                 </select>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">📋 {divisiList.length} divisi tersedia</p>
               </div>
 
               <div>

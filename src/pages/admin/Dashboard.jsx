@@ -127,8 +127,8 @@ export default function Dashboard() {
                   <tr key={surat.uuid} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
                     <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{surat.nomor_surat}</td>
                     <td className="px-6 py-4 text-sm text-slate-900 dark:text-slate-50">{truncateText(surat.perihal, 30)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{surat.divisi_pengirim}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{surat.divisi_tujuan}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{surat.pengirim_nama}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{surat.tujuan_nama}</td>
                     <td className="px-6 py-4">
                       <Select
                         value={surat.status}

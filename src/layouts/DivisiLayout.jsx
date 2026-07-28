@@ -3,10 +3,12 @@ import { Outlet, useNavigate } from '@tanstack/react-router';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import { DashboardSquare01Icon, Mail01Icon, Settings02Icon } from 'hugeicons-react';
+import { BookOpen } from 'lucide-react';
 
 const divisiNavigation = [
   { label: "Dashboard", to: "/divisi/dashboard", icon: DashboardSquare01Icon },
   { label: "Surat Masuk / Keluar", to: "/divisi/surat", icon: Mail01Icon },
+  { label: "Panduan Pengguna", to: "/divisi/panduan", icon: BookOpen },
   { label: "Pengaturan", to: "/divisi/settings", icon: Settings02Icon },
 ];
 

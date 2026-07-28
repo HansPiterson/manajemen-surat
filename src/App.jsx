@@ -20,6 +20,7 @@ import AdminSuratViewer from './pages/admin/SuratViewer';
 import AdminSuratDetail from './pages/admin/SuratDetail';
 import Settings from './pages/admin/Settings';
 import Analytics from './pages/admin/Analytics';
+import UserGuide from './pages/UserGuide';
 
 // Divisi Imports
 import DivisiLayout from './layouts/DivisiLayout';
@@ -94,6 +95,12 @@ const analyticsRoute = createRoute({
   component: Analytics,
 });
 
+const adminGuideRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/panduan',
+  component: UserGuide,
+});
+
 // --- DIVISI ROUTES ---
 const divisiAuthRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -131,6 +138,12 @@ const divisiSettingsRoute = createRoute({
   component: Settings,
 });
 
+const divisiGuideRoute = createRoute({
+  getParentRoute: () => divisiRoute,
+  path: '/panduan',
+  component: UserGuide,
+});
+
 // Create the route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -142,7 +155,8 @@ const routeTree = rootRoute.addChildren([
       adminSuratRoute,
       adminSuratDetailRoute,
       settingsRoute,
-      analyticsRoute
+      analyticsRoute,
+      adminGuideRoute
     ])
   ]),
   divisiAuthRoute.addChildren([
@@ -150,7 +164,8 @@ const routeTree = rootRoute.addChildren([
       divisiDashboardRoute,
       divisiSuratRoute,
       divisiSuratDetailRoute,
-      divisiSettingsRoute
+      divisiSettingsRoute,
+      divisiGuideRoute
     ])
   ])
 ]);
