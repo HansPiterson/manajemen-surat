@@ -91,6 +91,10 @@ export default function DivisiSuratViewer() {
       setError("Data divisi pengirim tidak ditemukan.");
       return;
     }
+    if (formData.divisi_tujuan_id === currentDivisiId) {
+      setError('Divisi tujuan harus berbeda dari divisi pengirim.');
+      return;
+    }
 
     setFormLoading(true);
     setError(null);
@@ -288,7 +292,7 @@ export default function DivisiSuratViewer() {
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500"
                 >
                   <option value="">-- Pilih Divisi --</option>
-                  {divisiList.map(div => (
+                  {divisiList.filter(div => div.id !== currentDivisiId).map(div => (
                     <option key={div.id} value={div.id}>{div.nama}</option>
                   ))}
                 </select>

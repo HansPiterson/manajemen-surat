@@ -139,6 +139,11 @@ export default function SuratViewer() {
         setFormLoading(false);
         return;
       }
+      if (formData.divisi_pengirim_id === formData.divisi_tujuan_id) {
+        setError('Divisi tujuan harus berbeda dari divisi pengirim');
+        setFormLoading(false);
+        return;
+      }
       const { error: createError } = await api.createSurat({
         nomor_surat,
         perihal: formData.perihal,
@@ -189,6 +194,12 @@ export default function SuratViewer() {
 
       if (String(formData.status).toLowerCase().trim() === 'diterima') {
         setSyncTarget({ uuid: editingSurat.uuid, newStatus: 'diterima', fromEditModal: true });
+        setFormLoading(false);
+        return;
+      }
+
+      if (formData.divisi_pengirim_id === formData.divisi_tujuan_id) {
+        setError('Divisi tujuan harus berbeda dari divisi pengirim');
         setFormLoading(false);
         return;
       }
@@ -265,6 +276,9 @@ export default function SuratViewer() {
     value: div.id,
     label: div.nama
   }));
+  const tujuanDivisiOptions = divisiOptions.filter(
+    option => option.value !== formData.divisi_pengirim_id
+  );
 
   const statusOptions = [
     { value: 'draft', label: 'Draft' },
@@ -457,7 +471,7 @@ export default function SuratViewer() {
             <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Perihal</label><textarea name="perihal" value={formData.perihal} onChange={e => setFormData({...formData, perihal: e.target.value})} rows={3} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" required /></div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Pengirim</label><Select options={divisiOptions} value={formData.divisi_pengirim_id} onChange={e => setFormData({...formData, divisi_pengirim_id: e.target.value})} placeholder="Pilih divisi pengirim" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Tujuan</label><Select options={divisiOptions} value={formData.divisi_tujuan_id} onChange={e => setFormData({...formData, divisi_tujuan_id: e.target.value})} placeholder="Pilih divisi tujuan" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Tujuan</label><Select options={tujuanDivisiOptions} value={formData.divisi_tujuan_id} onChange={e => setFormData({...formData, divisi_tujuan_id: e.target.value})} placeholder="Pilih divisi tujuan" /></div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Penerima (Opsional)</label><input type="text" name="nama_penerima" value={formData.nama_penerima} onChange={e => setFormData({...formData, nama_penerima: e.target.value})} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" /></div>
               <div className="flex gap-3 pt-4"><button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">Batal</button><button type="submit" disabled={formLoading} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50">{formLoading ? 'Menyimpan...' : 'Simpan'}</button></div>
             </form>
@@ -476,7 +490,7 @@ export default function SuratViewer() {
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Perihal</label><textarea name="perihal" value={formData.perihal} onChange={e => setFormData({...formData, perihal: e.target.value})} rows={3} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" required /></div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Pengirim</label><Select options={divisiOptions} value={formData.divisi_pengirim_id} onChange={e => setFormData({...formData, divisi_pengirim_id: e.target.value})} placeholder="Pilih divisi pengirim" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Tujuan</label><Select options={divisiOptions} value={formData.divisi_tujuan_id} onChange={e => setFormData({...formData, divisi_tujuan_id: e.target.value})} placeholder="Pilih divisi tujuan" /></div>
+              <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Divisi Tujuan</label><Select options={tujuanDivisiOptions} value={formData.divisi_tujuan_id} onChange={e => setFormData({...formData, divisi_tujuan_id: e.target.value})} placeholder="Pilih divisi tujuan" /></div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nama Penerima</label><input type="text" name="nama_penerima" value={formData.nama_penerima} onChange={e => setFormData({...formData, nama_penerima: e.target.value})} className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" /></div>
               <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label><Select options={[{value:'draft',label:'Draft'},{value:'dikirim',label:'Sedang Dikirim'}]} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} placeholder="Pilih status" /></div>
               <div className="flex gap-3 pt-4"><button type="button" onClick={() => setEditingSurat(null)} className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">Batal</button><button type="submit" disabled={formLoading} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50">{formLoading ? 'Menyimpan...' : 'Simpan'}</button></div>

@@ -100,6 +100,10 @@ export default function DivisiDashboard() {
       setError("Data divisi pengirim tidak ditemukan.");
       return;
     }
+    if (formData.divisi_tujuan_id === currentDivisiId) {
+      setError('Divisi tujuan harus berbeda dari divisi pengirim.');
+      return;
+    }
 
     setFormLoading(true);
     setError(null);
@@ -301,11 +305,11 @@ export default function DivisiDashboard() {
                   style={{ colorScheme: 'light dark' }}
                 >
                   <option value="" style={{ backgroundColor: 'white', color: 'black' }}>-- Pilih Divisi --</option>
-                  {divisiList.map(div => (
+                  {divisiList.filter(div => div.id !== currentDivisiId).map(div => (
                     <option key={div.id} value={div.id} style={{ backgroundColor: 'white', color: 'black' }}>{div.nama}</option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">📋 {divisiList.length} divisi tersedia</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">📋 {Math.max(divisiList.length - 1, 0)} divisi tujuan tersedia</p>
               </div>
 
               <div>
