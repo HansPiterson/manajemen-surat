@@ -239,6 +239,12 @@ router.post('/',
         return res.status(403).json({ error: 'Only admin and divisi can create surat' });
       }
 
+      if (divisi_pengirim_id === divisi_tujuan_id) {
+        return res.status(400).json({
+          error: 'Divisi tujuan harus berbeda dari divisi pengirim'
+        });
+      }
+
       let kurir_id = null;
 
       if (user.role === 'admin') {
@@ -312,6 +318,14 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     const surat = current.rows[0];
+
+    const nextDivisiPengirimId = divisi_pengirim_id ?? surat.divisi_pengirim_id;
+    const nextDivisiTujuanId = divisi_tujuan_id ?? surat.divisi_tujuan_id;
+    if (nextDivisiPengirimId === nextDivisiTujuanId) {
+      return res.status(400).json({
+        error: 'Divisi tujuan harus berbeda dari divisi pengirim'
+      });
+    }
 
     if (user.role === 'divisi') {
       if (surat.divisi_pengirim_id !== user.divisi_id) {

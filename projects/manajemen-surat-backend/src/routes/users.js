@@ -222,10 +222,15 @@ router.post('/device-token', authenticate, async (req, res) => {
     if (!token) return res.status(400).json({ error: 'Token required' });
 
     await pool.query(
-      `INSERT INTO device_tokens (user_id, token, platform)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, token) DO UPDATE SET platform = $3`,
-      [req.user.id, token, platform]
+      `WITH removed_stale_owners AS (
+         DELETE FROM device_tokens
+         WHERE token = $1 AND user_id <> $2
+       )
+       INSERT INTO device_tokens (user_id, token, platform)
+       VALUES ($2, $1, $3)
+       ON CONFLICT (user_id, token)
+       DO UPDATE SET platform = EXCLUDED.platform`,
+      [token, req.user.id, platform]
     );
     res.json({ success: true });
   } catch (err) {
