@@ -18,7 +18,8 @@ export default function KurirManagement() {
     password: '',
     nama_lengkap: '',
     role: 'kurir',
-    divisi_id: ''
+    divisi_id: '',
+    assigned_kurir_id: ''
   });
 
   useEffect(() => {
@@ -91,6 +92,9 @@ export default function KurirManagement() {
 
       if (newUser.role === 'divisi') {
         userData.divisi_id = newUser.divisi_id;
+        if (newUser.assigned_kurir_id) {
+          userData.assigned_kurir_id = newUser.assigned_kurir_id;
+        }
       }
 
       const { error } = await api.createUser(userData);
@@ -276,23 +280,43 @@ export default function KurirManagement() {
               </div>
 
               {newUser.role === 'divisi' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Divisi
-                  </label>
-                  <select
-                    value={newUser.divisi_id}
-                    onChange={(e) => setNewUser({ ...newUser, divisi_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Pilih divisi...</option>
-                    {divisiList.map((divisi) => (
-                      <option key={divisi.id} value={divisi.id}>
-                        {divisi.nama} ({divisi.kode})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Divisi
+                    </label>
+                    <select
+                      value={newUser.divisi_id}
+                      onChange={(e) => setNewUser({ ...newUser, divisi_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- Pilih Divisi --</option>
+                      {divisiList.map((div) => (
+                        <option key={div.id} value={div.id}>
+                          {div.nama}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Kurir Penanggung Jawab (Opsional)
+                    </label>
+                    <select
+                      value={newUser.assigned_kurir_id || ''}
+                      onChange={(e) => setNewUser({ ...newUser, assigned_kurir_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- Auto Pilih dari Divisi --</option>
+                      {kurirList.filter(k => k.role === 'kurir').map((k) => (
+                        <option key={k.id} value={k.id}>
+                          {k.nama_lengkap} ({k.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
               )}
             </div>
 
