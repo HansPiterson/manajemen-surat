@@ -8,6 +8,7 @@ import divisiRoutes from './routes/divisi.js';
 import suratRoutes from './routes/surat.js';
 import usersRoutes from './routes/users.js';
 import uploadRoutes from './routes/upload.js';
+import pairingRoutes from './routes/pairing.js';
 
 dotenv.config();
 import { addClient, removeClient } from './sse.js';
@@ -33,6 +34,7 @@ app.use('/api/divisi', divisiRoutes);
 app.use('/api/surat', suratRoutes);
 app.use('/api/surat', uploadRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/pairing', pairingRoutes);
 
 
 app.get('/api/events', (req, res) => {

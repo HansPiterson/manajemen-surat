@@ -27,38 +27,30 @@ async function getAccessToken() {
   }
 }
 
-export async function sendPushToKurir(title, body, data = {}, targetKurirId = null, divisiId = null) {
+export async function sendPushToKurir(title, body, data = {}, targetKurirId) {
   try {
+    if (!targetKurirId) {
+      console.log('[FCM] No target courier, skipping push');
+      return;
+    }
+
     const accessToken = await getAccessToken();
     if (!accessToken || !serviceAccount) {
       console.log('[FCM] No access token or service account, skipping push');
       return;
     }
 
-    let tokenQuery = `
-      SELECT dt.token FROM device_tokens dt
-      JOIN users u ON dt.user_id = u.id
-      WHERE u.role = 'kurir' AND u.status = 'approved'
-    `;
-    const queryParams = [];
-
-    if (targetKurirId) {
-      tokenQuery += ` AND u.id = $1`;
-      queryParams.push(targetKurirId);
-    } else if (divisiId) {
-      tokenQuery += ` AND EXISTS (
-        SELECT 1
-        FROM users tu
-        WHERE tu.role = 'divisi'
-          AND tu.divisi_id = $1
-          AND tu.assigned_kurir_id = u.id
-      )`;
-      queryParams.push(divisiId);
-    }
-
-    const result = await pool.query(tokenQuery, queryParams);
-    const tokens = result.rows.map(r => r.token);
-    console.log(`[FCM] Sending push to ${tokens.length} kurir (target: ${targetKurirId || divisiId || 'all'})`);
+    const result = await pool.query(
+      `SELECT dt.token
+       FROM device_tokens dt
+       JOIN users u ON dt.user_id = u.id
+       WHERE u.id = $1
+         AND u.role = 'kurir'
+         AND u.status = 'approved'`,
+      [targetKurirId]
+    );
+    const tokens = result.rows.map((row) => row.token);
+    console.log(`[FCM] Sending push to ${tokens.length} device(s) for courier ${targetKurirId}`);
     if (tokens.length === 0) return;
 
     const projectId = serviceAccount.project_id;
@@ -66,7 +58,7 @@ export async function sendPushToKurir(title, body, data = {}, targetKurirId = nu
 
     for (const token of tokens) {
       try {
-        const res = await fetch(url, {
+        const response = await fetch(url, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -77,7 +69,7 @@ export async function sendPushToKurir(title, body, data = {}, targetKurirId = nu
               token,
               notification: { title, body },
               data: Object.fromEntries(
-                Object.entries(data).map(([k, v]) => [k, String(v)])
+                Object.entries(data).map(([key, value]) => [key, String(value)])
               ),
               android: {
                 priority: 'high',
@@ -86,13 +78,13 @@ export async function sendPushToKurir(title, body, data = {}, targetKurirId = nu
             },
           }),
         });
-        const json = await res.json();
-        console.log('[FCM] Response:', res.status, JSON.stringify(json));
-      } catch (fcmErr) {
-        console.error('[FCM] Send error:', fcmErr.message);
+        const json = await response.json();
+        console.log('[FCM] Response:', response.status, JSON.stringify(json));
+      } catch (fcmError) {
+        console.error('[FCM] Send error:', fcmError.message);
       }
     }
-  } catch (err) {
-    console.error('[FCM] sendPushToKurir error:', err.message);
+  } catch (error) {
+    console.error('[FCM] sendPushToKurir error:', error.message);
   }
 }

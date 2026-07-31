@@ -2,6 +2,8 @@
 
 Backend adalah service Node.js yang menyediakan REST API, SSE, upload bukti foto, dan pengiriman FCM ke aplikasi kurir.
 
+Backend juga mengelola pairing QR satu akun Tata Usaha dengan satu kurir, sehingga surat ditugaskan berdasarkan pembuat surat (`created_by`), bukan dipilih acak dari divisi.
+
 ## Persiapan server PT
 
 Install Node.js LTS, PostgreSQL, dan PM2. Pastikan database perusahaan sudah memiliki schema aplikasi serta user database dengan hak akses yang sesuai.
@@ -54,6 +56,17 @@ chmod 600 serviceAccountKey.json
 
 File ini di-ignore Git dan tidak boleh dimasukkan ke repository. Jika private key pernah dibagikan, revoke key lama di Firebase/Google Cloud lalu buat key baru sebelum deployment PT.
 
+## Migration database
+
+Setelah backup database, jalankan migration pairing sekali sebelum restart backend:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f migrations/004_courier_pairing_tokens.sql
+```
+
+Gunakan user pemilik schema atau user yang memiliki izin `CREATE` pada schema `public`. Detail aturan pairing tersedia di [`PAIRING_QR.md`](PAIRING_QR.md).
+
 ## Install dan jalankan
 
 ```bash
@@ -77,6 +90,8 @@ Respons yang diharapkan memiliki `"status":"ok"`.
 git fetch origin backend
 git pull --ff-only origin backend
 npm ci
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f migrations/004_courier_pairing_tokens.sql
 node --check src/server.js
 pm2 restart manajemen-surat-backend
 ```

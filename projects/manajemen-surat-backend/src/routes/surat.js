@@ -5,8 +5,9 @@ import { body, validationResult } from 'express-validator';
 import pool from '../db/pool.js';
 import { authenticate, requireAdmin, requireRole } from '../middleware/auth.js';
 import {
-  findAssignedKurirId,
-  isKurirAssignedToDivision,
+  canKurirAccessSurat,
+  findAssignedKurirIdForCreator,
+  isApprovedKurir,
 } from '../services/kurir_assignment.js';
 
 const router = express.Router();
@@ -36,14 +37,20 @@ router.get('/', authenticate, async (req, res) => {
       values.push(user.divisi_id);
       paramIndex++;
     } else if (user.role === 'kurir') {
-      query += ` AND EXISTS (
-        SELECT 1
-        FROM users tu
-        WHERE tu.role = 'divisi'
-          AND tu.divisi_id = s.divisi_pengirim_id
-          AND tu.assigned_kurir_id = $${paramIndex}
-      )
-      AND (s.kurir_id = $${paramIndex} OR s.kurir_id IS NULL)`;
+      query += ` AND (
+        s.kurir_id = $${paramIndex}
+        OR (
+          s.status = 'draft'
+          AND s.kurir_id IS NULL
+          AND EXISTS (
+            SELECT 1
+            FROM users creator
+            WHERE creator.id = s.created_by
+              AND creator.role = 'divisi'
+              AND creator.assigned_kurir_id = $${paramIndex}
+          )
+        )
+      )`;
       values.push(user.id);
       paramIndex++;
     }
@@ -146,8 +153,7 @@ router.get('/by-nomor/:nomor', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
       }
     } else if (user.role === 'kurir') {
-      const assigned = await isKurirAssignedToDivision(user.id, surat.divisi_pengirim_id) &&
-        (surat.kurir_id == null || surat.kurir_id === user.id);
+      const assigned = await canKurirAccessSurat(user.id, surat);
       if (!assigned) {
         return res.status(403).json({ error: 'Access denied' });
       }
@@ -188,8 +194,7 @@ router.get('/:id', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
       }
     } else if (user.role === 'kurir') {
-      const assigned = await isKurirAssignedToDivision(user.id, surat.divisi_pengirim_id) &&
-        (surat.kurir_id == null || surat.kurir_id === user.id);
+      const assigned = await canKurirAccessSurat(user.id, surat);
       if (!assigned) {
         return res.status(403).json({ error: 'Access denied' });
       }
@@ -234,20 +239,19 @@ router.post('/',
         return res.status(403).json({ error: 'Only admin and divisi can create surat' });
       }
 
-      let kurir_id = req.body.kurir_id || null;
+      let kurir_id = null;
 
-      if (kurir_id && !(await isKurirAssignedToDivision(kurir_id, divisi_pengirim_id))) {
-        return res.status(400).json({
-          error: 'Kurir is not assigned to the sender division'
-        });
+      if (user.role === 'admin') {
+        kurir_id = req.body.kurir_id || null;
+        if (kurir_id && !(await isApprovedKurir(kurir_id))) {
+          return res.status(400).json({ error: 'Assigned user must be an approved kurir' });
+        }
+      } else {
+        kurir_id = await findAssignedKurirIdForCreator(user.id);
       }
 
-      if (!kurir_id) {
-        kurir_id = await findAssignedKurirId(divisi_pengirim_id);
-      }
-
-      const initialStatus = kurir_id ? 'dikirim' : 'draft';
-      const tanggalKirim = kurir_id ? new Date() : null;
+      const initialStatus = 'draft';
+      const tanggalKirim = null;
 
       const result = await pool.query(
         `INSERT INTO surat_ekspedisi
@@ -276,8 +280,7 @@ router.post('/',
         'Surat Baru Masuk! 📬',
         `${created.nomor_surat} - ${created.perihal || 'Surat baru'}`,
         { uuid: created.uuid, nomor_surat: created.nomor_surat },
-        kurir_id,
-        divisi_pengirim_id
+        kurir_id
       ).catch(() => {});
       res.status(201).json(created);
     } catch (error) {
@@ -315,14 +318,28 @@ router.put('/:id', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
       }
     } else if (user.role === 'kurir') {
-      const claiming = surat.status === 'draft' && status === 'dikirim' && kurir_id === user.id;
-      const assigned = await isKurirAssignedToDivision(user.id, surat.divisi_pengirim_id) &&
-        (surat.kurir_id == null || surat.kurir_id === user.id);
-      if (claiming && !assigned) {
-        return res.status(403).json({ error: 'Courier is not assigned to this division' });
-      }
+      const assigned = await canKurirAccessSurat(user.id, surat);
       if (!assigned) {
         return res.status(403).json({ error: 'Access denied' });
+      }
+      if (kurir_id !== undefined && kurir_id !== user.id) {
+        return res.status(403).json({ error: 'Courier cannot assign a letter to another courier' });
+      }
+      if (
+        perihal !== undefined ||
+        divisi_pengirim_id !== undefined ||
+        divisi_tujuan_id !== undefined ||
+        nama_penerima !== undefined ||
+        foto_bukti_url !== undefined ||
+        foto_hash !== undefined ||
+        foto_latitude !== undefined ||
+        foto_longitude !== undefined ||
+        catatan !== undefined
+      ) {
+        return res.status(403).json({ error: 'Courier can only take or update the delivery status' });
+      }
+      if (status !== undefined && status !== 'dikirim') {
+        return res.status(400).json({ error: 'Proof upload is required to complete a delivery' });
       }
     }
 
@@ -330,20 +347,13 @@ router.put('/:id', authenticate, async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
-    const effectiveSenderDivisionId = divisi_pengirim_id || surat.divisi_pengirim_id;
-    if (user.role === 'admin' && kurir_id !== undefined && kurir_id !== null &&
-        !(await isKurirAssignedToDivision(kurir_id, effectiveSenderDivisionId))) {
-      return res.status(400).json({
-        error: 'Kurir is not assigned to the sender division'
-      });
-    }
-
-    if (user.role === 'admin' && divisi_pengirim_id !== undefined && kurir_id === undefined &&
-        surat.kurir_id !== null &&
-        !(await isKurirAssignedToDivision(surat.kurir_id, effectiveSenderDivisionId))) {
-      const replacementKurirId = await findAssignedKurirId(effectiveSenderDivisionId);
-      updates.push(`kurir_id = $${paramIndex++}`);
-      values.push(replacementKurirId);
+    if (
+      user.role === 'admin' &&
+      kurir_id !== undefined &&
+      kurir_id !== null &&
+      !(await isApprovedKurir(kurir_id))
+    ) {
+      return res.status(400).json({ error: 'Assigned user must be an approved kurir' });
     }
 
     if (perihal !== undefined) { updates.push(`perihal = $${paramIndex++}`); values.push(perihal); }
@@ -361,7 +371,13 @@ router.put('/:id', authenticate, async (req, res) => {
       }
     }
 
-    if (kurir_id !== undefined) { updates.push(`kurir_id = $${paramIndex++}`); values.push(kurir_id); }
+    if (kurir_id !== undefined) {
+      updates.push(`kurir_id = $${paramIndex++}`);
+      values.push(kurir_id);
+    } else if (user.role === 'kurir' && surat.kurir_id === null && status === 'dikirim') {
+      updates.push(`kurir_id = $${paramIndex++}`);
+      values.push(user.id);
+    }
     if (foto_bukti_url !== undefined) { updates.push(`foto_bukti_url = $${paramIndex++}`); values.push(foto_bukti_url); }
     if (foto_hash !== undefined) { updates.push(`foto_hash = $${paramIndex++}`); values.push(foto_hash); }
     if (foto_latitude !== undefined) { updates.push(`foto_latitude = $${paramIndex++}`); values.push(foto_latitude); }
