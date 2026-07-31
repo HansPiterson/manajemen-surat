@@ -32,9 +32,9 @@ router.get('/', authenticate, async (req, res) => {
       values.push(user.divisi_id);
       paramIndex++;
     } else if (user.role === 'kurir') {
-      query += ` AND (s.kurir_id = $${paramIndex} OR s.status = 'draft')`;
-      values.push(user.id);
-      paramIndex++;
+      query += ` AND (s.kurir_id = $${paramIndex} OR (s.status = 'draft' AND (s.kurir_id = $${paramIndex} OR (s.kurir_id IS NULL AND s.divisi_pengirim_id = $${paramIndex + 1}))))`;
+      values.push(user.id, user.divisi_id);
+      paramIndex += 2;
     }
 
     if (status) {
@@ -97,18 +97,15 @@ router.get('/stats/summary', authenticate, requireAdmin, async (req, res) => {
       total_divisi: parseInt(divisiResult.rows[0].total_divisi) || 0,
     };
 
-    res.json({
-      stats,
-      recentActivity: recentResult.rows,
-    });
+    res.json(stats);
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get surat by nomor_surat (for detail page routing)
-router.get('/nomor/:nomorSurat', authenticate, async (req, res) => {
+// Get single surat by nomor_surat
+router.get('/by-nomor/:nomor', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT s.*,
@@ -120,7 +117,7 @@ router.get('/nomor/:nomorSurat', authenticate, async (req, res) => {
        LEFT JOIN divisi dt ON s.divisi_tujuan_id = dt.id
        LEFT JOIN users k ON s.kurir_id = k.id
        WHERE s.nomor_surat = $1`,
-      [req.params.nomorSurat]
+      [req.params.nomor]
     );
 
     if (result.rows.length === 0) {
@@ -194,6 +191,7 @@ router.post('/',
   body('perihal').optional().trim(),
   body('divisi_tujuan_id').matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).withMessage('Invalid UUID format'),
   body('divisi_pengirim_id').optional().matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).withMessage('Invalid UUID format'),
+  body('kurir_id').optional({ nullable: true, checkFalsy: true }).matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).withMessage('Invalid UUID format'),
   body('catatan').optional().trim(),
   async (req, res) => {
     const errors = validationResult(req);
@@ -218,23 +216,38 @@ router.post('/',
         return res.status(403).json({ error: 'Only admin and divisi can create surat' });
       }
 
+      let kurir_id = req.body.kurir_id || null;
+
+      // If user is divisi (TU) and didn't explicitly select a kurir_id, check assigned_kurir_id
+      if (!kurir_id && user.role === 'divisi') {
+        const userRes = await pool.query('SELECT assigned_kurir_id FROM users WHERE id = $1', [user.id]);
+        if (userRes.rows.length > 0 && userRes.rows[0].assigned_kurir_id) {
+          kurir_id = userRes.rows[0].assigned_kurir_id;
+        }
+      }
+
+      const initialStatus = kurir_id ? 'dikirim' : 'draft';
+      const tanggalKirim = kurir_id ? new Date() : null;
+
       const result = await pool.query(
         `INSERT INTO surat_ekspedisi
-         (nomor_surat, perihal, divisi_pengirim_id, divisi_tujuan_id, catatan, status)
-         VALUES ($1, $2, $3, $4, $5, 'draft')
+         (nomor_surat, perihal, divisi_pengirim_id, divisi_tujuan_id, kurir_id, created_by, catatan, status, tanggal_kirim)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING *`,
-        [nomor_surat, perihal, divisi_pengirim_id, divisi_tujuan_id, catatan]
+        [nomor_surat, perihal, divisi_pengirim_id, divisi_tujuan_id, kurir_id, user.id, catatan, initialStatus, tanggalKirim]
       );
 
       const surat = result.rows[0];
       const divisiResult = await pool.query(
         `SELECT
            pengirim.nama AS pengirim_nama,
-           tujuan.nama AS tujuan_nama
+           tujuan.nama AS tujuan_nama,
+           k.nama_lengkap AS kurir_nama
          FROM divisi pengirim
          JOIN divisi tujuan ON tujuan.id = $2
+         LEFT JOIN users k ON k.id = $3
          WHERE pengirim.id = $1`,
-        [surat.divisi_pengirim_id, surat.divisi_tujuan_id]
+        [surat.divisi_pengirim_id, surat.divisi_tujuan_id, surat.kurir_id]
       );
 
       const created = { ...surat, ...divisiResult.rows[0] };
@@ -242,7 +255,9 @@ router.post('/',
       sendPushToKurir(
         'Surat Baru Masuk! 📬',
         `${created.nomor_surat} - ${created.perihal || 'Surat baru'}`,
-        { uuid: created.uuid, nomor_surat: created.nomor_surat }
+        { uuid: created.uuid, nomor_surat: created.nomor_surat },
+        kurir_id,
+        divisi_pengirim_id
       ).catch(() => {});
       res.status(201).json(created);
     } catch (error) {

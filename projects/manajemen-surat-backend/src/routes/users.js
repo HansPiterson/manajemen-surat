@@ -10,10 +10,12 @@ const router = express.Router();
 router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.email, u.nama_lengkap, u.role, u.status, u.divisi_id, u.created_at,
-              d.nama as divisi_nama
+      `SELECT u.id, u.email, u.nama_lengkap, u.role, u.status, u.divisi_id, u.assigned_kurir_id, u.created_at,
+              d.nama as divisi_nama,
+              ak.nama_lengkap as assigned_kurir_nama
        FROM users u
        LEFT JOIN divisi d ON u.divisi_id = d.id
+       LEFT JOIN users ak ON u.assigned_kurir_id = ak.id
        ORDER BY u.created_at DESC`
     );
     res.json(result.rows);
@@ -48,13 +50,14 @@ router.post('/',
   body('nama_lengkap').notEmpty(),
   body('role').isIn(['admin', 'divisi', 'kurir']),
   body('divisi_id').optional({ nullable: true, checkFalsy: true }),
+  body('assigned_kurir_id').optional({ nullable: true, checkFalsy: true }),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, nama_lengkap, role, divisi_id } = req.body;
+    const { email, password, nama_lengkap, role, divisi_id, assigned_kurir_id } = req.body;
 
     try {
       const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -65,10 +68,10 @@ router.post('/',
       const password_hash = await bcrypt.hash(password, 10);
 
       const result = await pool.query(
-        `INSERT INTO users (email, password_hash, nama_lengkap, role, divisi_id, status)
-         VALUES ($1, $2, $3, $4, $5, 'approved')
-         RETURNING id, email, nama_lengkap, role, divisi_id, status`,
-        [email, password_hash, nama_lengkap, role, divisi_id || null]
+        `INSERT INTO users (email, password_hash, nama_lengkap, role, divisi_id, assigned_kurir_id, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'approved')
+         RETURNING id, email, nama_lengkap, role, divisi_id, assigned_kurir_id, status`,
+        [email, password_hash, nama_lengkap, role, divisi_id || null, assigned_kurir_id || null]
       );
 
       res.status(201).json(result.rows[0]);
@@ -85,6 +88,7 @@ router.put('/:id',
   requireAdmin,
   body('status').optional().isIn(['pending', 'approved', 'nonaktif']),
   body('divisi_id').optional({ nullable: true, checkFalsy: true }),
+  body('assigned_kurir_id').optional({ nullable: true, checkFalsy: true }),
   body('role').optional().isIn(['admin', 'divisi', 'kurir']),
   async (req, res) => {
     const errors = validationResult(req);
@@ -92,7 +96,7 @@ router.put('/:id',
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { status, divisi_id, role } = req.body;
+    const { status, divisi_id, assigned_kurir_id, role } = req.body;
     const updates = [];
     const values = [];
     let paramIndex = 1;
@@ -104,7 +108,12 @@ router.put('/:id',
 
     if (divisi_id !== undefined) {
       updates.push(`divisi_id = $${paramIndex++}`);
-      values.push(divisi_id);
+      values.push(divisi_id || null);
+    }
+
+    if (assigned_kurir_id !== undefined) {
+      updates.push(`assigned_kurir_id = $${paramIndex++}`);
+      values.push(assigned_kurir_id || null);
     }
 
     if (role !== undefined) {
