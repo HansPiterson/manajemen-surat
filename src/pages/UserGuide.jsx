@@ -14,6 +14,7 @@ import {
   MapPin,
   Menu,
   PackageCheck,
+  QrCode,
   Search,
   Settings,
   ShieldCheck,
@@ -38,7 +39,7 @@ const sections = [
 const adminFeatures = [
   { icon: LayoutDashboard, title: 'Dashboard Terpusat', text: 'Memantau jumlah surat, status pengiriman, kurir aktif, divisi, dan aktivitas terbaru.' },
   { icon: Building2, title: 'Manajemen Divisi', text: 'Menambah, mengubah, serta mengelola identitas divisi pengirim dan divisi tujuan.' },
-  { icon: UserCog, title: 'Manajemen Pengguna', text: 'Mengelola akun admin, divisi, dan kurir beserta hak aksesnya.' },
+  { icon: UserCog, title: 'Manajemen Pengguna', text: 'Menyetujui akun kurir dan memantau koneksi QR antara akun Tata Usaha dengan kurir.' },
   { icon: FileText, title: 'Surat Ekspedisi', text: 'Membuat, mencari, memfilter, melihat detail, mengubah, dan menghapus surat sesuai status.' },
   { icon: BarChart3, title: 'Analitik', text: 'Melihat distribusi surat dan performa pengiriman berdasarkan data operasional.' },
   { icon: Activity, title: 'Update Otomatis', text: 'Perubahan surat diterima secara real-time tanpa perlu memuat ulang halaman.' },
@@ -47,6 +48,7 @@ const adminFeatures = [
 const divisiFeatures = [
   { icon: LayoutDashboard, title: 'Dashboard Divisi', text: 'Melihat statistik dan surat terbaru yang berkaitan dengan divisi Anda.' },
   { icon: FileText, title: 'Surat Masuk & Keluar', text: 'Melihat surat yang dikirim oleh divisi atau ditujukan kepada divisi Anda.' },
+  { icon: QrCode, title: 'Hubungkan Kurir', text: 'Membuat QR sekali pakai agar satu kurir menjadi penanggung jawab khusus akun Tata Usaha Anda.' },
   { icon: PackageCheck, title: 'Buat Surat Baru', text: 'Membuat tugas pengiriman baru dengan memilih tujuan dan mengisi perihal surat.' },
   { icon: Search, title: 'Pencarian Cepat', text: 'Menemukan surat berdasarkan nomor, perihal, pengirim, tujuan, atau status.' },
   { icon: Camera, title: 'Bukti Pengiriman', text: 'Melihat foto bukti, nama penerima, waktu penerimaan, dan koordinat GPS.' },
@@ -56,7 +58,7 @@ const divisiFeatures = [
 const adminMenus = [
   { icon: LayoutDashboard, title: 'Dashboard', text: 'Ringkasan kondisi operasional. Klik ikon lihat pada aktivitas terbaru untuk membuka surat terkait.' },
   { icon: Building2, title: 'Manajemen Divisi', text: 'Gunakan untuk memastikan nama dan kode divisi tersedia sebelum membuat surat.' },
-  { icon: Users, title: 'Manajemen Pengguna', text: 'Buat akun kurir/divisi, perbarui profil pengguna, dan kelola akses aplikasi.' },
+  { icon: Users, title: 'Manajemen Pengguna', text: 'Buat akun, approve kurir, dan pantau pairing TU–kurir tanpa assignment manual.' },
   { icon: FileText, title: 'Surat Ekspedisi', text: 'Pusat CRUD surat. Surat selesai dilindungi agar bukti pengiriman tidak berubah sembarangan.' },
   { icon: BarChart3, title: 'Analitik', text: 'Membaca tren volume surat dan distribusi status untuk evaluasi operasional.' },
   { icon: Settings, title: 'Settings', text: 'Mengatur tema terang, gelap, atau mengikuti pengaturan perangkat.' },
@@ -65,11 +67,13 @@ const adminMenus = [
 const divisiMenus = [
   { icon: LayoutDashboard, title: 'Dashboard', text: 'Menampilkan statistik surat hari ini, minggu ini, bulan ini, dan aktivitas terbaru divisi.' },
   { icon: FileText, title: 'Surat Masuk / Keluar', text: 'Membuat surat keluar dan memantau surat yang dikirim atau diterima oleh divisi.' },
+  { icon: QrCode, title: 'Hubungkan Kurir', text: 'Buat QR selama 5 menit, lalu minta kurir melakukan scan dari menu Akun pada aplikasi.' },
   { icon: Settings, title: 'Pengaturan', text: 'Memilih tema tampilan yang nyaman digunakan.' },
 ];
 
 const faqs = [
   { q: 'Mengapa surat baru belum muncul?', a: 'Pastikan indikator server berstatus Online. Tunggu beberapa detik karena pembaruan real-time dapat dipengaruhi koneksi, lalu muat ulang jika diperlukan.' },
+  { q: 'Mengapa kurir tidak menerima surat dari TU saya?', a: 'Buka menu Hubungkan Kurir dan pastikan nama kurir sudah tampil sebagai koneksi aktif. Jika belum, buat QR baru dan scan ulang dari aplikasi kurir.' },
   { q: 'Mengapa surat selesai tidak dapat diedit?', a: 'Surat berstatus Diterima telah memiliki bukti pengiriman dan diperlakukan sebagai catatan final untuk menjaga integritas data.' },
   { q: 'Mengapa foto bukti tidak tampil?', a: 'Pastikan kurir sudah menyelesaikan pengiriman dan mengunggah bukti. Periksa juga koneksi internet serta akses ke server gambar.' },
   { q: 'Apa yang dilakukan jika salah memilih divisi?', a: 'Selama surat belum selesai, buka menu Surat Ekspedisi, pilih Edit, lalu perbarui divisi pengirim atau tujuan.' },
@@ -90,11 +94,12 @@ export default function UserGuide() {
   const roleLabel = role === 'admin' ? 'Administrator' : 'Pengguna Divisi';
 
   const quickSteps = useMemo(() => role === 'admin' ? [
-    ['Siapkan master data', 'Pastikan divisi dan akun kurir telah dibuat.'],
+    ['Siapkan master data', 'Pastikan divisi, akun TU, dan akun kurir approved telah dibuat.'],
     ['Buat surat', 'Isi nomor, perihal, divisi pengirim, dan divisi tujuan.'],
     ['Pantau pengiriman', 'Status berubah dari Draft menjadi Dikirim saat tugas diambil kurir.'],
     ['Verifikasi penyelesaian', 'Buka detail surat untuk melihat penerima, foto, waktu, dan GPS.'],
   ] : [
+    ['Hubungkan kurir', 'Buka Hubungkan Kurir, buat QR, lalu minta kurir melakukan scan.'],
     ['Buka surat keluar', 'Masuk ke menu Surat Masuk / Keluar.'],
     ['Buat tugas baru', 'Isi perihal dan pilih divisi tujuan dengan benar.'],
     ['Pantau status', 'Tunggu kurir mengambil surat hingga status menjadi Dikirim.'],
@@ -179,8 +184,9 @@ export default function UserGuide() {
             <SectionHeading eyebrow="Workflow end-to-end" title="Alur Pengiriman Surat" description="Satu rangkaian data yang terhubung antara website dan aplikasi kurir." />
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
               {[
-                ['Surat dibuat', 'Admin atau divisi mengisi informasi surat. Sistem menyimpan surat sebagai Draft.', FileText, 'bg-blue-600'],
-                ['Tugas masuk ke aplikasi kurir', 'Surat Draft otomatis tersedia bagi kurir dan dapat disertai notifikasi perangkat.', Smartphone, 'bg-violet-600'],
+                ['TU dan kurir terhubung', 'Akun Tata Usaha membuat QR sekali pakai dan kurir melakukan scan melalui aplikasi.', QrCode, 'bg-indigo-600'],
+                ['Surat dibuat', 'Surat dari akun TU disimpan sebagai Draft dan ditujukan hanya kepada kurir yang terhubung.', FileText, 'bg-blue-600'],
+                ['Tugas masuk ke aplikasi kurir', 'Surat Draft tersedia hanya pada akun kurir penanggung jawab dan dapat disertai notifikasi perangkat.', Smartphone, 'bg-violet-600'],
                 ['Kurir mengambil tugas', 'Kurir memilih Ambil Tugas. Status surat berubah menjadi Dikirim dan kurir tercatat.', Truck, 'bg-amber-500'],
                 ['Bukti pengiriman direkam', 'Kurir mengisi nama penerima, mengambil foto, serta merekam GPS dan waktu.', Camera, 'bg-cyan-600'],
                 ['Surat selesai', 'Data tersinkron ke server, status menjadi Diterima, dan bukti dapat dilihat di website.', CheckCircle2, 'bg-emerald-600'],

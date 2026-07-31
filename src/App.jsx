@@ -27,6 +27,7 @@ import DivisiLayout from './layouts/DivisiLayout';
 import DivisiDashboard from './pages/divisi/Dashboard';
 import DivisiSuratViewer from './pages/divisi/SuratViewer';
 import DivisiSuratDetail from './pages/divisi/SuratDetail';
+import CourierPairing from './pages/divisi/CourierPairing';
 
 // Create a root route
 const rootRoute = createRootRoute({
@@ -132,6 +133,12 @@ const divisiSuratDetailRoute = createRoute({
   component: DivisiSuratDetail,
 });
 
+const divisiCourierPairingRoute = createRoute({
+  getParentRoute: () => divisiRoute,
+  path: '/kurir',
+  component: CourierPairing,
+});
+
 const divisiSettingsRoute = createRoute({
   getParentRoute: () => divisiRoute,
   path: '/settings',
@@ -164,6 +171,7 @@ const routeTree = rootRoute.addChildren([
       divisiDashboardRoute,
       divisiSuratRoute,
       divisiSuratDetailRoute,
+      divisiCourierPairingRoute,
       divisiSettingsRoute,
       divisiGuideRoute
     ])

@@ -60,7 +60,7 @@ Untuk production dengan Nginx, arahkan virtual host ke folder `dist/` dan aktifk
 5. Pastikan backend mengizinkan origin website pada `CORS_ORIGIN`.
 6. Jalankan `npm run build`.
 7. Jalankan hasil build melalui Nginx atau PM2.
-8. Uji login, daftar surat, detail berdasarkan nomor, SSE, dan foto bukti.
+8. Uji login, halaman Hubungkan Kurir, generate/scan QR, daftar surat, detail berdasarkan nomor, SSE, dan foto bukti.
 
 ## Catatan keamanan
 

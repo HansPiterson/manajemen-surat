@@ -222,6 +222,22 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  async getPairingStatus() {
+    return this.request('/pairing/status');
+  }
+
+  async createPairingToken() {
+    return this.request('/pairing/token', {
+      method: 'POST',
+    });
+  }
+
+  async disconnectPairing() {
+    return this.request('/pairing/connection', {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const api = new ApiClient();

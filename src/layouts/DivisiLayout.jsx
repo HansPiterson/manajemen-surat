@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from '@tanstack/react-router';
+import { Outlet } from '@tanstack/react-router';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import { DashboardSquare01Icon, Mail01Icon, Settings02Icon } from 'hugeicons-react';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, QrCode } from 'lucide-react';
 
 const divisiNavigation = [
   { label: "Dashboard", to: "/divisi/dashboard", icon: DashboardSquare01Icon },
   { label: "Surat Masuk / Keluar", to: "/divisi/surat", icon: Mail01Icon },
+  { label: "Hubungkan Kurir", to: "/divisi/kurir", icon: QrCode },
   { label: "Panduan Pengguna", to: "/divisi/panduan", icon: BookOpen },
   { label: "Pengaturan", to: "/divisi/settings", icon: Settings02Icon },
 ];

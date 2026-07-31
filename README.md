@@ -15,6 +15,7 @@ Panduan pemindahan ke server baru tersedia pada [`DEPLOYMENT.md`](DEPLOYMENT.md)
 - Melihat kurir aktif dan jumlah divisi.
 - Manajemen divisi.
 - Manajemen pengguna dan kurir.
+- Memantau koneksi QR antara setiap akun Tata Usaha dan kurir tanpa assignment manual.
 - Approve atau menonaktifkan akun kurir.
 - Membuat surat baru.
 - Mengubah data surat yang masih dapat diedit.
@@ -32,7 +33,8 @@ Panduan pemindahan ke server baru tersedia pada [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
 - Melihat dashboard khusus divisi.
 - Melihat surat masuk dan surat keluar divisinya.
-- Membuat surat baru untuk divisi tujuan.
+- Menghubungkan satu kurir penanggung jawab melalui QR sekali pakai.
+- Membuat surat baru untuk divisi tujuan; surat hanya masuk ke kurir yang terhubung dengan akun pembuat.
 - Melihat status perjalanan surat.
 - Membuka detail surat berdasarkan nomor surat.
 - Melihat nama penerima dan bukti foto setelah pengiriman selesai.
@@ -43,11 +45,15 @@ Panduan pemindahan ke server baru tersedia pada [`DEPLOYMENT.md`](DEPLOYMENT.md)
 ## Alur Operasional Surat
 
 ```text
-Admin/divisi membuat surat di website
+Akun Tata Usaha membuat QR pairing
         ↓
-Surat tersimpan dengan status Draft
+Kurir scan QR dari aplikasi
         ↓
-Surat tersedia pada aplikasi kurir
+Pengguna divisi membuat surat di website
+        ↓
+Surat tersimpan sebagai Draft untuk kurir pasangan akun TU
+        ↓
+Surat tersedia hanya pada aplikasi kurir tersebut
         ↓
 Kurir mengambil tugas
         ↓
@@ -88,6 +94,17 @@ Role yang tersedia:
 - `admin`: memiliki akses operasional penuh.
 - `divisi`: hanya dapat melihat dan mengelola data yang berkaitan dengan divisinya.
 - `kurir`: menggunakan aplikasi mobile untuk mengambil dan mengantar surat.
+
+### Hubungkan Kurir untuk Setiap Akun Tata Usaha
+
+1. Login menggunakan akun divisi/Tata Usaha.
+2. Buka menu **Hubungkan Kurir**.
+3. Tekan **Buat QR koneksi**.
+4. Minta kurir membuka tab **Akun** pada aplikasi dan memilih **Scan QR Tata Usaha**.
+5. Kurir melakukan scan sebelum countdown 5 menit berakhir.
+6. Pastikan nama kurir tampil sebagai koneksi aktif pada website.
+
+Satu akun TU hanya memiliki satu kurir aktif dan satu kurir hanya memiliki satu akun TU aktif. Jika kurir melakukan pairing ke TU lain, hubungan sebelumnya diputus. Surat lama yang sudah dimiliki kurir tetap tercatat pada kurir lama, sedangkan surat baru mengikuti pairing terbaru.
 
 ### 2. Membuat Surat Baru sebagai Admin
 
@@ -241,6 +258,10 @@ Endpoint utama:
 | `POST` | `/auth/login` | Login pengguna. |
 | `POST` | `/auth/register` | Registrasi pengguna. |
 | `GET` | `/auth/me` | Mengambil profil pengguna aktif. |
+| `GET` | `/pairing/status` | Membaca koneksi TU–kurir aktif. |
+| `POST` | `/pairing/token` | Membuat QR sekali pakai untuk akun TU. |
+| `POST` | `/pairing/claim` | Menghubungkan kurir menggunakan token QR. |
+| `DELETE` | `/pairing/connection` | Memutus koneksi kurir dari akun TU. |
 | `GET` | `/divisi` | Mengambil daftar divisi. |
 | `POST` | `/divisi` | Membuat divisi. |
 | `PUT` | `/divisi/:id` | Mengubah divisi. |
@@ -293,6 +314,7 @@ src/
     │   └── Settings.jsx
     └── divisi/
         ├── Dashboard.jsx
+        ├── CourierPairing.jsx
         ├── SuratViewer.jsx
         ├── SuratDetail.jsx
         └── Settings.jsx
@@ -307,6 +329,7 @@ src/
 - REST API dengan `fetch`.
 - Server-Sent Events untuk realtime.
 - Recharts untuk analitik.
+- `qrcode.react` untuk QR pairing TU–kurir.
 - Lucide React dan HugeIcons untuk ikon.
 - Node.js dan Express pada backend terpisah.
 
