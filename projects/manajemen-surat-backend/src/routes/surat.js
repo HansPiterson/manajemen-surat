@@ -4,6 +4,10 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import pool from '../db/pool.js';
 import { authenticate, requireAdmin, requireRole } from '../middleware/auth.js';
+import {
+  findAssignedKurirId,
+  isKurirAssignedToDivision,
+} from '../services/kurir_assignment.js';
 
 const router = express.Router();
 
@@ -32,9 +36,16 @@ router.get('/', authenticate, async (req, res) => {
       values.push(user.divisi_id);
       paramIndex++;
     } else if (user.role === 'kurir') {
-      query += ` AND (s.kurir_id = $${paramIndex} OR (s.status = 'draft' AND (s.kurir_id = $${paramIndex} OR (s.kurir_id IS NULL AND s.divisi_pengirim_id = $${paramIndex + 1}))))`;
-      values.push(user.id, user.divisi_id);
-      paramIndex += 2;
+      query += ` AND EXISTS (
+        SELECT 1
+        FROM users tu
+        WHERE tu.role = 'divisi'
+          AND tu.divisi_id = s.divisi_pengirim_id
+          AND tu.assigned_kurir_id = $${paramIndex}
+      )
+      AND (s.kurir_id = $${paramIndex} OR s.kurir_id IS NULL)`;
+      values.push(user.id);
+      paramIndex++;
     }
 
     if (status) {
@@ -97,7 +108,10 @@ router.get('/stats/summary', authenticate, requireAdmin, async (req, res) => {
       total_divisi: parseInt(divisiResult.rows[0].total_divisi) || 0,
     };
 
-    res.json(stats);
+    res.json({
+      stats,
+      recentActivity: recentResult.rows,
+    });
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -132,7 +146,9 @@ router.get('/by-nomor/:nomor', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
       }
     } else if (user.role === 'kurir') {
-      if (surat.kurir_id !== user.id) {
+      const assigned = await isKurirAssignedToDivision(user.id, surat.divisi_pengirim_id) &&
+        (surat.kurir_id == null || surat.kurir_id === user.id);
+      if (!assigned) {
         return res.status(403).json({ error: 'Access denied' });
       }
     }
@@ -172,7 +188,9 @@ router.get('/:id', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
       }
     } else if (user.role === 'kurir') {
-      if (surat.kurir_id !== user.id && surat.status !== 'draft') {
+      const assigned = await isKurirAssignedToDivision(user.id, surat.divisi_pengirim_id) &&
+        (surat.kurir_id == null || surat.kurir_id === user.id);
+      if (!assigned) {
         return res.status(403).json({ error: 'Access denied' });
       }
     }
@@ -218,12 +236,14 @@ router.post('/',
 
       let kurir_id = req.body.kurir_id || null;
 
-      // If user is divisi (TU) and didn't explicitly select a kurir_id, check assigned_kurir_id
-      if (!kurir_id && user.role === 'divisi') {
-        const userRes = await pool.query('SELECT assigned_kurir_id FROM users WHERE id = $1', [user.id]);
-        if (userRes.rows.length > 0 && userRes.rows[0].assigned_kurir_id) {
-          kurir_id = userRes.rows[0].assigned_kurir_id;
-        }
+      if (kurir_id && !(await isKurirAssignedToDivision(kurir_id, divisi_pengirim_id))) {
+        return res.status(400).json({
+          error: 'Kurir is not assigned to the sender division'
+        });
+      }
+
+      if (!kurir_id) {
+        kurir_id = await findAssignedKurirId(divisi_pengirim_id);
       }
 
       const initialStatus = kurir_id ? 'dikirim' : 'draft';
@@ -295,9 +315,13 @@ router.put('/:id', authenticate, async (req, res) => {
         return res.status(403).json({ error: 'Access denied' });
       }
     } else if (user.role === 'kurir') {
-      if (surat.status === 'draft' && status === 'dikirim' && kurir_id === user.id) {
-        // allowed
-      } else if (surat.kurir_id !== user.id) {
+      const claiming = surat.status === 'draft' && status === 'dikirim' && kurir_id === user.id;
+      const assigned = await isKurirAssignedToDivision(user.id, surat.divisi_pengirim_id) &&
+        (surat.kurir_id == null || surat.kurir_id === user.id);
+      if (claiming && !assigned) {
+        return res.status(403).json({ error: 'Courier is not assigned to this division' });
+      }
+      if (!assigned) {
         return res.status(403).json({ error: 'Access denied' });
       }
     }
@@ -305,6 +329,22 @@ router.put('/:id', authenticate, async (req, res) => {
     const updates = [];
     const values = [];
     let paramIndex = 1;
+
+    const effectiveSenderDivisionId = divisi_pengirim_id || surat.divisi_pengirim_id;
+    if (user.role === 'admin' && kurir_id !== undefined && kurir_id !== null &&
+        !(await isKurirAssignedToDivision(kurir_id, effectiveSenderDivisionId))) {
+      return res.status(400).json({
+        error: 'Kurir is not assigned to the sender division'
+      });
+    }
+
+    if (user.role === 'admin' && divisi_pengirim_id !== undefined && kurir_id === undefined &&
+        surat.kurir_id !== null &&
+        !(await isKurirAssignedToDivision(surat.kurir_id, effectiveSenderDivisionId))) {
+      const replacementKurirId = await findAssignedKurirId(effectiveSenderDivisionId);
+      updates.push(`kurir_id = $${paramIndex++}`);
+      values.push(replacementKurirId);
+    }
 
     if (perihal !== undefined) { updates.push(`perihal = $${paramIndex++}`); values.push(perihal); }
     if (divisi_pengirim_id !== undefined) { updates.push(`divisi_pengirim_id = $${paramIndex++}`); values.push(divisi_pengirim_id); }

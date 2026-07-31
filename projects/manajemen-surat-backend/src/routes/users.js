@@ -60,6 +60,26 @@ router.post('/',
     const { email, password, nama_lengkap, role, divisi_id, assigned_kurir_id } = req.body;
 
     try {
+      if (role === 'divisi' && !divisi_id) {
+        return res.status(400).json({ error: 'Divisi user must specify divisi_id' });
+      }
+
+      if (assigned_kurir_id) {
+        if (role !== 'divisi') {
+          return res.status(400).json({ error: 'Only divisi users can have an assigned kurir' });
+        }
+
+        const kurirResult = await pool.query(
+          `SELECT id
+           FROM users
+           WHERE id = $1 AND role = 'kurir' AND status = 'approved'`,
+          [assigned_kurir_id]
+        );
+        if (kurirResult.rows.length === 0) {
+          return res.status(400).json({ error: 'Assigned user must be an approved kurir' });
+        }
+      }
+
       const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
         return res.status(400).json({ error: 'Email already exists' });
@@ -101,6 +121,45 @@ router.put('/:id',
     const values = [];
     let paramIndex = 1;
 
+    try {
+    const currentResult = await pool.query(
+      'SELECT role, divisi_id, assigned_kurir_id FROM users WHERE id = $1',
+      [req.params.id]
+    );
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentUser = currentResult.rows[0];
+    const effectiveRole = role ?? currentUser.role;
+    const effectiveDivisiId = divisi_id !== undefined ? divisi_id : currentUser.divisi_id;
+
+    if (effectiveRole === 'divisi' && !effectiveDivisiId) {
+      return res.status(400).json({ error: 'Divisi user must have a divisi_id' });
+    }
+
+    if (assigned_kurir_id) {
+      if (effectiveRole !== 'divisi') {
+        return res.status(400).json({ error: 'Only divisi users can have an assigned kurir' });
+      }
+
+      const kurirResult = await pool.query(
+        `SELECT id
+         FROM users
+         WHERE id = $1 AND role = 'kurir' AND status = 'approved'`,
+        [assigned_kurir_id]
+      );
+      if (kurirResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Assigned user must be an approved kurir' });
+      }
+    }
+
+    if (role !== undefined && role !== 'divisi' && assigned_kurir_id === undefined &&
+        currentUser.assigned_kurir_id !== null) {
+      updates.push(`assigned_kurir_id = $${paramIndex++}`);
+      values.push(null);
+    }
+
     if (status !== undefined) {
       updates.push(`status = $${paramIndex++}`);
       values.push(status);
@@ -128,7 +187,6 @@ router.put('/:id',
     updates.push(`updated_at = NOW()`);
     values.push(req.params.id);
 
-    try {
       const result = await pool.query(
         `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex} 
          RETURNING id, email, nama_lengkap, role, divisi_id, status`,

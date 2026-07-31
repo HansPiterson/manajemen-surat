@@ -46,7 +46,13 @@ export async function sendPushToKurir(title, body, data = {}, targetKurirId = nu
       tokenQuery += ` AND u.id = $1`;
       queryParams.push(targetKurirId);
     } else if (divisiId) {
-      tokenQuery += ` AND u.divisi_id = $1`;
+      tokenQuery += ` AND EXISTS (
+        SELECT 1
+        FROM users tu
+        WHERE tu.role = 'divisi'
+          AND tu.divisi_id = $1
+          AND tu.assigned_kurir_id = u.id
+      )`;
       queryParams.push(divisiId);
     }
 
