@@ -4,6 +4,8 @@ Website operasional untuk mengelola surat ekspedisi PT Timah. Website digunakan 
 
 Website ini terhubung ke backend REST API perusahaan. Aplikasi kurir Flutter menggunakan backend yang sama sehingga perubahan status surat dan bukti pengiriman dapat ditampilkan pada website.
 
+Panduan pemindahan ke server baru tersedia pada [`DEPLOYMENT.md`](DEPLOYMENT.md). Endpoint backend website dikonfigurasi melalui `VITE_API_URL` pada file `.env` sebelum menjalankan build production.
+
 ## Fitur Utama
 
 ### Administrator
@@ -244,7 +246,7 @@ Endpoint utama:
 | `PUT` | `/divisi/:id` | Mengubah divisi. |
 | `DELETE` | `/divisi/:id` | Menghapus divisi. |
 | `GET` | `/surat` | Mengambil daftar surat. |
-| `GET` | `/surat/nomor/:nomorSurat` | Mengambil surat berdasarkan nomor. |
+| `GET` | `/surat/by-nomor/:nomorSurat` | Mengambil surat berdasarkan nomor. |
 | `GET` | `/surat/:uuid` | Mengambil surat berdasarkan UUID. |
 | `POST` | `/surat` | Membuat surat baru. |
 | `PUT` | `/surat/:uuid` | Mengubah surat atau status surat. |

@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://43.134.228.34:3001/api';
 
 class ApiClient {
   constructor() {
@@ -150,7 +150,7 @@ class ApiClient {
   }
 
   async getSuratByNomor(nomorSurat) {
-    return this.request(`/surat/nomor/${encodeURIComponent(nomorSurat)}`);
+    return this.request(`/surat/by-nomor/${encodeURIComponent(nomorSurat)}`);
   }
 
   async createSurat(data) {

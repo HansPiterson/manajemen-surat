@@ -11,6 +11,7 @@ export default function KurirManagement() {
   const [error, setError] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [savingAssignmentId, setSavingAssignmentId] = useState(null);
 
   // Form state
   const [newUser, setNewUser] = useState({
@@ -47,6 +48,22 @@ export default function KurirManagement() {
       setDivisiList(data ?? []);
     } catch (err) {
       console.error('Error fetching divisi:', err);
+    }
+  };
+
+  const handleAssignmentChange = async (userId, assignedKurirId) => {
+    setSavingAssignmentId(userId);
+    try {
+      const { error: updateError } = await api.updateUser(userId, {
+        assigned_kurir_id: assignedKurirId || null
+      });
+      if (updateError) throw new Error(updateError);
+      setError(null);
+      await fetchKurir();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingAssignmentId(null);
     }
   };
 
@@ -159,6 +176,7 @@ export default function KurirManagement() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Divisi</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Kurir Penanggung Jawab</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Aksi</th>
               </tr>
@@ -171,6 +189,27 @@ export default function KurirManagement() {
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 capitalize">{kurir.role}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                     {kurir.divisi_nama || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                    {kurir.role === 'divisi' ? (
+                      <select
+                        value={kurir.assigned_kurir_id || ''}
+                        disabled={savingAssignmentId === kurir.id}
+                        onChange={(event) => handleAssignmentChange(kurir.id, event.target.value)}
+                        className="min-w-52 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                      >
+                        <option value="">Belum ditugaskan</option>
+                        {kurirList
+                          .filter((candidate) => candidate.role === 'kurir' && candidate.status === 'approved')
+                          .map((candidate) => (
+                            <option key={candidate.id} value={candidate.id}>
+                              {candidate.nama_lengkap}
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
