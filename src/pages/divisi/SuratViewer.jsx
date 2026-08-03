@@ -4,6 +4,7 @@ import { formatDate } from '../../lib/utils';
 import { api } from '../../lib/api';
 import Skeleton from '../../components/ui/Skeleton';
 import { Download01Icon, PrinterIcon, Cancel01Icon } from 'hugeicons-react';
+import { Building, Calendar, Eye, FileText, MapPin, User, X } from 'lucide-react';
 
 const truncateText = (text, maxLength = 12) => {
   if (!text) return '-';
@@ -25,6 +26,7 @@ export default function DivisiSuratViewer() {
   
   // Create Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedSurat, setSelectedSurat] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
   const [currentDivisiId, setCurrentDivisiId] = useState(null);
   const [formData, setFormData] = useState({
@@ -37,6 +39,17 @@ export default function DivisiSuratViewer() {
     fetchUserData();
     fetchDivisi();
   }, []);
+
+  useEffect(() => {
+    if (!selectedSurat) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedSurat(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedSurat]);
 
   const fetchUserData = async () => {
     try {
@@ -208,6 +221,7 @@ export default function DivisiSuratViewer() {
                 <th className="px-6 py-4 font-medium">Perihal</th>
                 <th className="px-6 py-4 font-medium whitespace-nowrap">Tanggal</th>
                 <th className="px-6 py-4 font-medium">Status</th>
+                <th className="px-6 py-4 font-medium text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -220,11 +234,12 @@ export default function DivisiSuratViewer() {
                     <td className="px-6 py-4"><Skeleton className="h-5 w-48" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-5 w-24" /></td>
                     <td className="px-6 py-4"><Skeleton className="h-6 w-16 rounded-md" /></td>
+                    <td className="px-6 py-4"><Skeleton className="h-8 w-8 rounded-md mx-auto" /></td>
                   </tr>
                 ))
               ) : suratList.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                  <td colSpan="7" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
                     Belum ada surat yang terdaftar untuk divisi ini.
                   </td>
                 </tr>
@@ -247,6 +262,17 @@ export default function DivisiSuratViewer() {
                     <td className="px-6 py-4 text-sm">
                       {getStatusBadge(surat.status)}
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSurat(surat)}
+                        className="inline-flex items-center justify-center p-2 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                        title="Lihat detail surat"
+                        aria-label={`Lihat detail surat ${surat.nomor_surat}`}
+                      >
+                        <Eye size={18} />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -254,6 +280,116 @@ export default function DivisiSuratViewer() {
           </table>
         </div>
       </div>
+
+      {selectedSurat && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hide-on-print animate-fade-in"
+          onClick={() => setSelectedSurat(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detail-surat-title"
+            className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] animate-scale-up"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h3 id="detail-surat-title" className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                <FileText size={20} className="text-blue-600 dark:text-blue-400" />
+                Detail Surat Ekspedisi
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSelectedSurat(null)}
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Tutup detail surat"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Nomor Surat</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 break-all">
+                    {selectedSurat.nomor_surat || '-'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Tanggal Diterima</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-start gap-1.5">
+                    <Calendar size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                    <span>
+                      {formatDate(
+                        selectedSurat.tanggal_terima
+                        || (selectedSurat.status === 'diterima' ? selectedSurat.updated_at : null)
+                      )}
+                    </span>
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Pengirim (Divisi)</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-start gap-1.5">
+                    <Building size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                    <span>{selectedSurat.pengirim_nama || '-'}</span>
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Tujuan (Divisi)</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-start gap-1.5">
+                    <Building size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                    <span>{selectedSurat.tujuan_nama || '-'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Perihal</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-relaxed break-words">
+                  {selectedSurat.perihal || '-'}
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">Bukti Pengiriman</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-start gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <User size={18} className="text-slate-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Nama Penerima</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100 break-words">
+                        {selectedSurat.nama_penerima || 'Belum tersedia'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <MapPin size={18} className="text-slate-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Koordinat GPS</p>
+                      {selectedSurat.foto_latitude != null && selectedSurat.foto_longitude != null ? (
+                        <a
+                          href={`https://www.google.com/maps?q=${selectedSurat.foto_latitude},${selectedSurat.foto_longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-block text-xs sm:text-sm font-mono text-blue-600 dark:text-blue-400 hover:underline break-all"
+                        >
+                          {selectedSurat.foto_latitude}, {selectedSurat.foto_longitude}
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          Belum tersedia
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreateModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hide-on-print">
