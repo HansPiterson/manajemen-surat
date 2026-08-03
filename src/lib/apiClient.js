@@ -1,5 +1,5 @@
 // REST API Client - replaces Supabase client
-const API_URL = import.meta.env.VITE_API_URL || 'http://10.2.9.230:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 class ApiClient {
   constructor() {

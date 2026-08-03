@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { api } from '../lib/api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://10.2.9.230:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export function useSSE(onEvent) {
   const esRef = useRef(null);
