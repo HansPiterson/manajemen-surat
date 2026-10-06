@@ -1,10 +1,10 @@
 import { useSSE } from '../../hooks/useSSE';
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../lib/utils';
+import { formatDate, resolveFotoUrl } from '../../lib/utils';
 import { api } from '../../lib/api';
 import Skeleton from '../../components/ui/Skeleton';
 import { Download01Icon, PrinterIcon, Cancel01Icon } from 'hugeicons-react';
-import { Building, Calendar, Eye, FileText, MapPin, User, X } from 'lucide-react';
+import { Building, Calendar, Eye, FileText, ImageOff, MapPin, User, X } from 'lucide-react';
 
 const truncateText = (text, maxLength = 12) => {
   if (!text) return '-';
@@ -27,6 +27,8 @@ export default function DivisiSuratViewer() {
   // Create Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedSurat, setSelectedSurat] = useState(null);
+  const [fotoOpen, setFotoOpen] = useState(false);
+  const [fotoError, setFotoError] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [currentDivisiId, setCurrentDivisiId] = useState(null);
   const [formData, setFormData] = useState({
@@ -44,12 +46,16 @@ export default function DivisiSuratViewer() {
     if (!selectedSurat) return undefined;
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setSelectedSurat(null);
+      if (event.key !== 'Escape') return;
+      if (fotoOpen) setFotoOpen(false);
+      else setSelectedSurat(null);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedSurat]);
+  }, [selectedSurat, fotoOpen]);
+
+  const selectedFotoUrl = resolveFotoUrl(selectedSurat?.foto_bukti_url);
 
   const fetchUserData = async () => {
     try {
@@ -265,7 +271,11 @@ export default function DivisiSuratViewer() {
                     <td className="px-6 py-4 text-center">
                       <button
                         type="button"
-                        onClick={() => setSelectedSurat(surat)}
+                        onClick={() => {
+                          setFotoOpen(false);
+                          setFotoError(false);
+                          setSelectedSurat(surat);
+                        }}
                         className="inline-flex items-center justify-center p-2 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
                         title="Lihat detail surat"
                         aria-label={`Lihat detail surat ${surat.nomor_surat}`}
@@ -353,6 +363,26 @@ export default function DivisiSuratViewer() {
 
               <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                 <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50">Bukti Pengiriman</h4>
+                {selectedFotoUrl && !fotoError ? (
+                  <button
+                    type="button"
+                    onClick={() => setFotoOpen(true)}
+                    className="block w-full rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:opacity-90 transition-opacity"
+                    title="Klik untuk memperbesar foto"
+                  >
+                    <img
+                      src={selectedFotoUrl}
+                      alt={`Foto bukti pengiriman ${selectedSurat.nomor_surat}`}
+                      className="w-full max-h-72 object-contain"
+                      onError={() => setFotoError(true)}
+                    />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400">
+                    <ImageOff size={18} className="shrink-0" />
+                    {selectedFotoUrl ? 'Foto bukti tidak dapat dimuat.' : 'Foto bukti belum tersedia.'}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-start gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700">
                     <User size={18} className="text-slate-400 shrink-0 mt-0.5" />
@@ -388,6 +418,27 @@ export default function DivisiSuratViewer() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {fotoOpen && selectedFotoUrl && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/95 flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setFotoOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setFotoOpen(false)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+            aria-label="Tutup foto"
+          >
+            <X size={24} />
+          </button>
+          <img
+            src={selectedFotoUrl}
+            alt={`Foto bukti pengiriman ${selectedSurat.nomor_surat}`}
+            className="max-w-full max-h-full object-contain"
+          />
         </div>
       )}
 
