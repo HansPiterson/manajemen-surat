@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { formatDate } from '../../lib/utils';
+import { formatDate, resolveFotoUrl } from '../../lib/utils';
 import { api } from '../../lib/api';
 import LoadingScreen from '../../components/ui/LoadingScreen';
 import {
@@ -178,7 +178,7 @@ export default function SuratDetail() {
             {/* Foto Preview */}
             <div className="mb-4 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
               <img
-                src={surat.foto_bukti_url}
+                src={resolveFotoUrl(surat.foto_bukti_url)}
                 alt="Bukti Pengiriman"
                 className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => setLightboxOpen(true)}
@@ -226,7 +226,7 @@ export default function SuratDetail() {
             <X size={24} />
           </button>
           <img
-            src={surat.foto_bukti_url}
+            src={resolveFotoUrl(surat.foto_bukti_url)}
             alt="Bukti Pengiriman"
             className="max-w-full max-h-full object-contain"
             onClick={() => setLightboxOpen(false)}
